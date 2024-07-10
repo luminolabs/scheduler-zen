@@ -1,0 +1,14 @@
+# requirements.txt
+
+fastapi
+uvicorn
+pydantic
+httpx
+
+python-dotenv
+
+google-cloud-pubsub
+google-cloud-storage
+google-cloud-compute
+
+aiosqlite
