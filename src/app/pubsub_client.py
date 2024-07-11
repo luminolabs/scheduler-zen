@@ -1,132 +1,82 @@
-# pubsub_client.py
+# pubsub.py
 
 import asyncio
 import json
 import logging
-from typing import Optional
 
 from google.cloud import pubsub_v1
-from google.api_core import retry
+from typing import Callable, Dict, Any
 
-from models import Job, Message
-
-
-# Set up logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 class PubSubClient:
     """
-    Client for interacting with Google Cloud Pub/Sub.
+    Manages Google Cloud Pub/Sub operations.
     """
 
-    def __init__(self, project_id: str,
-                 start_signal_topic_name: str = 'pipeline-zen-start',
-                 stop_signal_topic_name: str = 'pipeline-zen-stop',
-                 vm_updates_subscription_name: str = 'scheduler-zen-updates'):
+    def __init__(self, project_id: str):
         """
-        Initialize the PubSubClient.
+        Initializes the PubSubClient with a project ID.
 
         Args:
-            project_id (str): The GCP project ID
-            start_signal_topic_name (str): The name of the Pub/Sub topic for job sending start signals
-            stop_signal_topic_name (str): The name of the Pub/Sub topic for job sending stop signals
-            vm_updates_subscription_name (str): The name of the Pub/Sub subscription for receiving VM updates
+            project_id (str): The Google Cloud project ID.
         """
-
         self.project_id = project_id
-        self.start_signal_topic_name = start_signal_topic_name
-        self.stop_signal_topic_name = stop_signal_topic_name
-        self.vm_updates_subscription_name = vm_updates_subscription_name
-
         self.publisher = pubsub_v1.PublisherClient()
         self.subscriber = pubsub_v1.SubscriberClient()
+        logging.info("PubSubClient initialized with project_id: %s", project_id)
 
-        self.start_signal_topic_path = self.publisher.topic_path(self.project_id, self.start_signal_topic_name)
-        self.stop_signal_topic_path = self.publisher.topic_path(self.project_id, self.stop_signal_topic_name)
-        self.vm_updates_subscription_path = self.subscriber.subscription_path(
-            self.project_id, self.vm_updates_subscription_name
-        )
-
-    async def _publish_message(self, topic_path: str, message: Message) -> str:
+    async def publish_job(self, topic_name: str, job_data: Dict[str, Any]) -> None:
         """
-        Publish a message to the given Pub/Sub topic.
+        Publishes a job to a specified Pub/Sub topic.
 
         Args:
-            topic_path (str): The full path of the Pub/Sub topic.
-            message (Message): The message to publish.
-
-        Returns:
-            str: The message ID of the published message.
+            topic_name (str): The Pub/Sub topic.
+            job_data (dict): The data to publish.
         """
-        try:
-            data = json.dumps(message.model_dump()).encode("utf-8")
-            future = self.publisher.publish(topic_path, data)
-            message_id = await asyncio.to_thread(future.result)
-            logger.info(f"Published message to {topic_path} with message ID: {message_id}")
-            return message_id
-        except Exception as e:
-            logger.error(f"Error publishing message to {topic_path}: {e}")
-            raise
+        logging.info("Publishing job to topic: %s with data: %s", topic_name, job_data)
+        topic_path = self.publisher.topic_path(self.project_id, topic_name)
+        data = json.dumps(job_data).encode("utf-8")
+        future = self.publisher.publish(topic_path, data, **{'mig': 'pipeline-zen-jobs-' + job_data['gpu_config']})
+        await asyncio.to_thread(future.result)
 
-    async def publish_start_job_signal(self, job: Job) -> str:
+    async def publish_stop_signal(self, topic_name: str, job_id: str) -> None:
         """
-        Publish a start signal for a job to the Pub/Sub topic.
+        Publishes a stop signal for a job to a specified Pub/Sub topic.
 
         Args:
-            job (Job): The job to publish.
-
-        Returns:
-            str: The message ID of the published message.
-        """
-        message = Message(message_type="start_signal", payload=job.model_dump())
-        return await self._publish_message(self.start_signal_topic_path, message)
-
-    async def publish_stop_job_signal(self, job_id: str) -> str:
-        """
-        Publish a stop signal for a job to the Pub/Sub topic.
-
-        Args:
+            topic_name (str): The Pub/Sub topic.
             job_id (str): The ID of the job to stop.
-
-        Returns:
-            str: The message ID of the published message.
         """
-        message = Message(message_type="stop_signal", payload={"job_id": job_id})
-        return await self._publish_message(self.stop_signal_topic_path, message)
+        logging.info("Publishing stop signal to topic: %s for job_id: %s", topic_name, job_id)
+        topic_path = self.publisher.topic_path(self.project_id, topic_name)
+        data = json.dumps({"action": "stop", "job_id": job_id}).encode("utf-8")
+        future = self.publisher.publish(topic_path, data)
+        await asyncio.to_thread(future.result)
 
-    async def listen_for_vm_status(self) -> Optional[dict]:
+    async def listen_for_heartbeats(self, subscription_name: str, callback: Callable) -> None:
         """
-        Receive a VM status update message from the Pub/Sub subscription.
+        Listens for heartbeats on a specified Pub/Sub subscription.
 
-        Returns:
-            Optional[dict]: The received message as a dictionary, or None if no message was received.
+        Args:
+            subscription_name (str): The Pub/Sub subscription.
+            callback (Callable[[str], None]): The callback function to handle incoming messages.
         """
-        try:
-            response = await asyncio.to_thread(
-                self.subscriber.pull,
-                request={
-                    "subscription": self.vm_updates_subscription_path,
-                    "max_messages": 1,
-                },
-                retry=retry.Retry(deadline=300),
-            )
+        logging.info("Listening for heartbeats on subscription: %s", subscription_name)
+        subscription_path = self.subscriber.subscription_path(self.project_id, subscription_name)
 
-            if response.received_messages:
-                message = response.received_messages[0]
-                await asyncio.to_thread(
-                    self.subscriber.acknowledge,
-                    request={
-                        "subscription": self.vm_updates_subscription_path,
-                        "ack_ids": [message.ack_id],
-                    }
-                )
-                data = json.loads(message.message.data.decode("utf-8"))
-                logger.info(f"Received VM update: {data}")
-                return data
-            else:
-                return None
-        except Exception as e:
-            logger.error(f"Error receiving VM update: {e}")
-            return None
+        async def process_message(message):
+            await callback(message.data)
+            message.ack()
+
+        def callback_wrapper(message):
+            asyncio.create_task(process_message(message))
+
+        streaming_pull_future = self.subscriber.subscribe(subscription_path, callback=callback_wrapper)
+        with self.subscriber:
+            try:
+                await asyncio.to_thread(streaming_pull_future.result)
+            except Exception as e:
+                streaming_pull_future.cancel()
+                print(f"Listening for heartbeats failed: {e}")

@@ -1,189 +1,128 @@
-# scheduler.py
-
 import asyncio
+import json
 import logging
-from typing import Dict, List, Optional
-import time
+from typing import Any, Dict
 
-from models import Job, JobStatus, Helm, ComputeInstance
-from mig_manager import MIGManager
-from pubsub_client import PubSubClient
+from cluster_orchestrator import ClusterOrchestrator
 from database import Database
+from pubsub_client import PubSubClient
 
-# Set up logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-GCP_PROJECT_ID = "neat-airport-407301"
 
 
 class Scheduler:
     """
-    Scheduler class responsible for managing jobs, VMs, and MIGs.
+    Manages the scheduling of jobs in the system.
     """
 
-    def __init__(self):
-        """Initialize the Scheduler with its dependencies."""
-        self.mig_manager = MIGManager(project_id=GCP_PROJECT_ID)
-        self.pubsub_client = PubSubClient(project_id=GCP_PROJECT_ID)
-        self.db = Database()
-        self.running = False
-        self.vm_statuses: Dict[str, ComputeInstance] = {}
+    def __init__(self, db: Database, pubsub: PubSubClient, cluster_orchestrator: ClusterOrchestrator):
+        """
+        Initializes the Scheduler.
 
-    async def start(self):
-        """Start the scheduler and its background tasks."""
-        logger.info("Starting scheduler")
+        Args:
+            db (Database): The database instance for job tracking.
+            pubsub (PubSubClient): The PubSub client for messaging.
+            cluster_orchestrator (ClusterOrchestrator): The cluster orchestrator.
+        """
+        self.db = db
+        self.pubsub = pubsub
+        self.cluster_orchestrator = cluster_orchestrator
+        self.running = False
+        logging.info("Scheduler initialized")
+
+    async def start(self) -> None:
+        """
+        Starts the scheduler to manage jobs.
+        """
         self.running = True
-        await self.db.create_tables()
-        await asyncio.create_task(self._main_loop())
-        await asyncio.create_task(self._listen_for_vm_updates())
+        logging.info("Scheduler started")
+        await asyncio.gather(
+            self._schedule_jobs(),
+            self._monitor_jobs(),
+            self._listen_for_heartbeats()
+        )
 
-    async def stop(self):
-        """Stop the scheduler and its background tasks."""
-        logger.info("Stopping scheduler")
+    async def stop(self) -> None:
+        """
+        Stops the scheduler.
+        """
         self.running = False
+        logging.info("Scheduler stopped")
 
-    async def add_job(self, job_data: dict) -> Job:
+    async def _schedule_jobs(self) -> None:
         """
-        Add a new job to the system.
-
-        Args:
-            job_data (dict): Job details including model, dataset, and hyperparameters.
-
-        Returns:
-            Job: The created job object.
+        Schedules new jobs and scales the cluster accordingly.
         """
-        logger.info(f"Adding new job: {job_data}")
-        job = Job(status=JobStatus.NEW, **job_data)
-        job_id = await self.db.add_job(job)
-        return await self.db.get_job(job_id)
+        logging.info("Starting job scheduling")
+        while self.running:
+            new_jobs = self.db.get_jobs_by_status('NEW')
+            for job in new_jobs:
+                await self.pubsub.publish_job('pipeline-zen-jobs', job['data'])
+                await self.cluster_orchestrator.scale_cluster(job['data']['gpu_config'], scale_amount=1)
+                self.db.update_job(job['id'], 'PENDING')
+                logging.info("Scheduled job id: %s", job['id'])
+            await asyncio.sleep(10)  # Check for new jobs every 10 seconds
 
-    async def get_job(self, job_id: str) -> Optional[Job]:
+    async def _monitor_jobs(self) -> None:
         """
-        Retrieve a job by its ID.
-
-        Args:
-            job_id (str): The ID of the job to retrieve.
-
-        Returns:
-            Optional[Job]: The job if found, None otherwise.
+        Monitors the running jobs to ensure they are progressing.
         """
-        logger.info(f"Retrieving job: {job_id}")
-        return await self.db.get_job(job_id)
+        logging.info("Starting job monitoring")
+        while self.running:
+            running_jobs = self.db.get_jobs_by_status('RUNNING')
+            for job in running_jobs:
+                # TODO: Implement job heartbeat monitoring
+                pass
+            await asyncio.sleep(60)  # Monitor jobs every minute
 
-    async def list_jobs(self, status: Optional[JobStatus] = None) -> List[Job]:
+    async def _listen_for_heartbeats(self) -> None:
         """
-        List jobs, optionally filtered by status.
-
-        Args:
-            status (Optional[JobStatus]): Filter jobs by this status.
-
-        Returns:
-            List[Job]: List of jobs matching the criteria.
+        Listens for job heartbeats to update their status.
         """
-        logger.info(f"Listing jobs with status filter: {status}")
-        return await self.db.get_jobs(status)
+        logging.info("Listening for job heartbeats")
+
+        async def heartbeat_callback(message_data: str) -> None:
+            data = json.loads(message_data)
+            job_id = data['job_id']
+            status = data['status']
+            self.db.update_job(job_id, status)
+            logging.info("Updated job id: %s with status: %s", job_id, status)
+
+        await self.pubsub.listen_for_heartbeats('pipeline-zen-jobs-heartbeats', heartbeat_callback)
 
     async def stop_job(self, job_id: str) -> bool:
         """
-        Stop a running job.
+        Stops a running job.
 
         Args:
             job_id (str): The ID of the job to stop.
 
         Returns:
-            bool: True if the stop signal was sent successfully, False otherwise.
+            bool: True if the job was stopped, False otherwise.
         """
-        logger.info(f"Attempting to stop job: {job_id}")
-        job = await self.db.get_job(job_id)
-        if job and job.status == JobStatus.RUNNING:
-            await self.pubsub_client.publish_stop_job_signal(job_id)
+        job = self.db.get_job(job_id)
+        if job and job['status'] == 'RUNNING':
+            await self.pubsub.publish_stop_signal('pipeline-zen-jobs-stop', job_id)
+            self.db.update_job(job_id, 'STOPPING')
+            logging.info("Stopped job id: %s", job_id)
             return True
+        logging.warning("Job id: %s not running or does not exist", job_id)
         return False
 
-    async def get_status(self) -> Helm:
+    async def get_status(self) -> Dict[str, Any]:
         """
-        Get the current status of the scheduler.
+        Gets the status of the scheduler, including cluster and job statuses.
 
         Returns:
-            Helm: Current status including running jobs, VM statuses, and MIG sizes.
+            Dict[str, Any]: A dictionary with the scheduler status.
         """
-        logger.info("Fetching scheduler status")
-        running_jobs = await self.db.get_jobs(JobStatus.RUNNING)
-        pending_jobs = await self.db.get_jobs(JobStatus.PENDING)
-        mig_sizes = {region: await self.mig_manager.get_mig_size(region)
-                     for region in self.mig_manager.regions}
-        return Helm(
-            running_jobs=running_jobs,
-            pending_jobs=pending_jobs,
-            vm_statuses=self.vm_statuses,
-            mig_sizes=mig_sizes
-        )
-
-    async def _main_loop(self):
-        """Main loop of the scheduler, running periodic tasks."""
-        while self.running:
-            await self._process_new_jobs()
-            await self._monitor_jobs()
-            await self._monitor_idle_vms()
-            await asyncio.sleep(60)  # Run loop every minute
-
-    async def _process_new_jobs(self):
-        """Process newly added jobs."""
-        new_jobs = await self.db.get_jobs(JobStatus.NEW)
-        for job in new_jobs:
-            logger.info(f"Processing new job: {job.id}")
-            await self.pubsub_client.publish_start_job_signal(job)
-            await self.mig_manager.scale_up_all_regions()
-            await self.db.update_job(job.id, status=JobStatus.PENDING)
-
-    async def _monitor_jobs(self):
-        """Monitor and update status of running jobs."""
-        running_jobs = await self.db.get_jobs(JobStatus.RUNNING)
-        for job in running_jobs:
-            status = self.vm_statuses.get(job.vm_name)
-            if status and status.job_id == job.id and status.status == JobStatus.COMPLETED:
-                logger.info(f"Job completed: {job.id}")
-                await self.db.update_job(job.id, status=JobStatus.COMPLETED)
-
-    async def _monitor_idle_vms(self):
-        """Monitor and clean up idle VMs."""
-        current_time = time.time()
-        for vm_name, status in list(self.vm_statuses.items()):
-            if status.job_id is None and current_time - status.created_at > 300:  # 5 minutes
-                logger.info(f"Deleting idle VM: {vm_name}")
-                await self.mig_manager.delete_vm(status.zone, vm_name)
-                del self.vm_statuses[vm_name]
-
-    async def _listen_for_vm_updates(self):
-        """Listen for VM status updates from Pub/Sub."""
-        while self.running:
-            message = await self.pubsub_client.listen_for_vm_status()
-            if message:
-                await self._handle_vm_update(message)
-
-    async def _handle_vm_update(self, message: dict):
-        """
-        Handle incoming VM status updates.
-
-        Args:
-            message (dict): The status update message from a VM.
-        """
-        vm_name = message['vm_name']
-        logger.info(f"Received VM update: {vm_name}")
-        if vm_name not in self.vm_statuses:
-            self.vm_statuses[vm_name] = ComputeInstance(
-                vm_name=vm_name,
-                region=message['region'],
-                job_id=message.get('job_id'),
-                start_time=time.time()
-            )
-        else:
-            self.vm_statuses[vm_name].job_id = message.get('job_id')
-            self.vm_statuses[vm_name].status = message.get('status')
-
-        if message.get('status') == JobStatus.RUNNING:
-            await self.db.update_job(message['job_id'], status=JobStatus.RUNNING, vm_name=vm_name)
-        elif message.get('status') == JobStatus.COMPLETED:
-            await self.db.update_job(message['job_id'], status=JobStatus.COMPLETED)
-            # Note: VM self-deletes after job completion
+        cluster_status = await self.cluster_orchestrator.get_cluster_status()
+        running_jobs = self.db.get_jobs_by_status('RUNNING')
+        pending_jobs = self.db.get_jobs_by_status('PENDING')
+        status = {
+            'cluster_status': cluster_status,
+            'running_jobs': len(running_jobs),
+            'pending_jobs': len(pending_jobs)
+        }
+        logging.info("Scheduler status: %s", status)
+        return status
