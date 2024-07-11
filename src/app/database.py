@@ -1,83 +1,105 @@
+import aiosqlite
+import json
 import logging
-import sqlite3
-from typing import Any, Dict, List
+from typing import List, Dict, Any, Optional
 
-logging.basicConfig(level=logging.INFO)
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 
 class Database:
-    """
-    Manages the SQLite database for job tracking.
-    """
+    """Manages the SQLite database for job tracking."""
 
     def __init__(self, db_path: str):
         """
-        Initializes the Database with the path to the SQLite file.
+        Initialize the Database with the path to the SQLite file.
 
         Args:
             db_path (str): The path to the SQLite database file.
         """
         self.db_path = db_path
-        self.conn = sqlite3.connect(db_path)
-        self.cursor = self.conn.cursor()
-        logging.info("Database initialized with db_path: %s", db_path)
+        logger.info(f"Database initialized with db_path: {db_path}")
 
-    def create_tables(self) -> None:
-        """
-        Creates the necessary tables for job tracking.
-        """
-        logging.info("Creating tables in the database")
-        self.cursor.execute('''CREATE TABLE IF NOT EXISTS jobs (
+    async def create_tables(self) -> None:
+        """Create the necessary tables for job tracking."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute('''CREATE TABLE IF NOT EXISTS jobs (
                                 id TEXT PRIMARY KEY,
-                                status TEXT,
-                                data TEXT)''')
-        self.conn.commit()
+                                workflow TEXT,
+                                args TEXT,
+                                keep_alive INTEGER,
+                                cluster TEXT,
+                                status TEXT)''')
+            await db.commit()
+        logger.info("Database tables created")
 
-    def add_job(self, job_id: str, status: str, data: str) -> None:
+    async def add_job(self, job_data: Dict[str, Any]) -> str:
         """
-        Adds a new job to the database.
+        Add a new job to the database.
 
         Args:
-            job_id (str): The ID of the job.
-            status (str): The status of the job.
-            data (str): The data associated with the job.
-        """
-        logging.info("Adding job with id: %s, status: %s", job_id, status)
-        self.cursor.execute('INSERT INTO jobs (id, status, data) VALUES (?, ?, ?)', (job_id, status, data))
-        self.conn.commit()
+            job_data (Dict[str, Any]): The job data including workflow, args, keep_alive, and cluster.
 
-    def update_job(self, job_id: str, status: str) -> None:
+        Returns:
+            str: The ID of the newly added job.
         """
-        Updates the status of a job in the database.
+        job_id = job_data.get('id') or self._generate_job_id()
+        workflow = job_data['workflow']
+        args = json.dumps(job_data['args'])
+        keep_alive = int(job_data['keep_alive'])
+        cluster = job_data['cluster']
+        status = 'NEW'
+
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute('INSERT INTO jobs (id, workflow, args, keep_alive, cluster, status) VALUES (?, ?, ?, ?, ?, ?)',
+                             (job_id, workflow, args, keep_alive, cluster, status))
+            await db.commit()
+
+        logger.info(f"Added job with id: {job_id}, workflow: {workflow}, cluster: {cluster}")
+        return job_id
+
+    async def update_job(self, job_id: str, status: str) -> None:
+        """
+        Update the status of a job in the database.
 
         Args:
             job_id (str): The ID of the job.
             status (str): The new status of the job.
         """
-        logging.info("Updating job id: %s to status: %s", job_id, status)
-        self.cursor.execute('UPDATE jobs SET status = ? WHERE id = ?', (status, job_id))
-        self.conn.commit()
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute('UPDATE jobs SET status = ? WHERE id = ?', (status, job_id))
+            await db.commit()
+        logger.info(f"Updated job id: {job_id} to status: {status}")
 
-    def get_job(self, job_id: str) -> Dict[str, Any]:
+    async def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
         """
-        Retrieves a job from the database by its ID.
+        Retrieve a job from the database by its ID.
 
         Args:
             job_id (str): The ID of the job.
 
         Returns:
-            Dict[str, Any]: A dictionary with job details.
+            Optional[Dict[str, Any]]: A dictionary with job details if found, None otherwise.
         """
-        logging.info("Getting job with id: %s", job_id)
-        self.cursor.execute('SELECT * FROM jobs WHERE id = ?', (job_id,))
-        row = self.cursor.fetchone()
-        if row:
-            return {'id': row[0], 'status': row[1], 'data': row[2]}
-        return {}
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute('SELECT * FROM jobs WHERE id = ?', (job_id,)) as cursor:
+                row = await cursor.fetchone()
+                if row:
+                    return {
+                        'id': row[0],
+                        'workflow': row[1],
+                        'args': json.loads(row[2]),
+                        'keep_alive': bool(row[3]),
+                        'cluster': row[4],
+                        'status': row[5]
+                    }
+        logger.info(f"Retrieved job with id: {job_id}")
+        return None
 
-    def get_jobs_by_status(self, status: str) -> List[Dict[str, Any]]:
+    async def get_jobs_by_status(self, status: str) -> List[Dict[str, Any]]:
         """
-        Retrieves all jobs with a given status.
+        Retrieve all jobs with a given status.
 
         Args:
             status (str): The status to filter jobs by.
@@ -85,7 +107,30 @@ class Database:
         Returns:
             List[Dict[str, Any]]: A list of dictionaries with job details.
         """
-        logging.info("Getting jobs with status: %s", status)
-        self.cursor.execute('SELECT * FROM jobs WHERE status = ?', (status,))
-        rows = self.cursor.fetchall()
-        return [{'id': row[0], 'status': row[1], 'data': row[2]} for row in rows]
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute('SELECT * FROM jobs WHERE status = ?', (status,)) as cursor:
+                rows = await cursor.fetchall()
+                jobs = [
+                    {
+                        'id': row[0],
+                        'workflow': row[1],
+                        'args': json.loads(row[2]),
+                        'keep_alive': bool(row[3]),
+                        'cluster': row[4],
+                        'status': row[5]
+                    } for row in rows
+                ]
+        logger.info(f"Retrieved {len(jobs)} jobs with status: {status}")
+        return jobs
+
+    @staticmethod
+    def _generate_job_id() -> str:
+        """
+        Generate a unique job ID.
+
+        Returns:
+            str: A unique job ID.
+        """
+        # This is a simple implementation. You might want to use a more robust method in production.
+        import uuid
+        return str(uuid.uuid4())

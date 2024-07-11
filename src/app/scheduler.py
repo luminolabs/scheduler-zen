@@ -3,21 +3,21 @@ import json
 import logging
 from typing import Any, Dict
 
-from cluster_orchestrator import ClusterOrchestrator
 from database import Database
 from pubsub_client import PubSubClient
+from cluster_orchestrator import ClusterOrchestrator
 
-logging.basicConfig(level=logging.INFO)
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 
 class Scheduler:
-    """
-    Manages the scheduling of jobs in the system.
-    """
+    """Manages the scheduling of jobs in the system."""
 
     def __init__(self, db: Database, pubsub: PubSubClient, cluster_orchestrator: ClusterOrchestrator):
         """
-        Initializes the Scheduler.
+        Initialize the Scheduler.
 
         Args:
             db (Database): The database instance for job tracking.
@@ -28,14 +28,13 @@ class Scheduler:
         self.pubsub = pubsub
         self.cluster_orchestrator = cluster_orchestrator
         self.running = False
-        logging.info("Scheduler initialized")
+        logger.info("Scheduler initialized")
 
     async def start(self) -> None:
-        """
-        Starts the scheduler to manage jobs.
-        """
+        """Start the scheduler to manage jobs."""
         self.running = True
-        logging.info("Scheduler started")
+        await self.db.create_tables()  # Ensure tables are created
+        logger.info("Scheduler started")
         await asyncio.gather(
             self._schedule_jobs(),
             self._monitor_jobs(),
@@ -43,56 +42,62 @@ class Scheduler:
         )
 
     async def stop(self) -> None:
-        """
-        Stops the scheduler.
-        """
+        """Stop the scheduler."""
         self.running = False
-        logging.info("Scheduler stopped")
+        logger.info("Scheduler stopped")
+
+    async def add_job(self, job_data: Dict[str, Any]) -> str:
+        """
+        Add a new job to the system.
+
+        Args:
+            job_data (Dict[str, Any]): The job data including workflow, args, keep_alive, and cluster.
+
+        Returns:
+            str: The ID of the newly added job.
+        """
+        job_id = await self.db.add_job(job_data)
+        logger.info(f"Added new job with ID: {job_id}")
+        return job_id
 
     async def _schedule_jobs(self) -> None:
-        """
-        Schedules new jobs and scales the cluster accordingly.
-        """
-        logging.info("Starting job scheduling")
+        """Schedule new jobs and scale the cluster accordingly."""
+        logger.info("Starting job scheduling")
         while self.running:
-            new_jobs = self.db.get_jobs_by_status('NEW')
+            new_jobs = await self.db.get_jobs_by_status('NEW')
             for job in new_jobs:
-                await self.pubsub.publish_job('pipeline-zen-jobs', job['data'])
-                await self.cluster_orchestrator.scale_cluster(job['data']['gpu_config'], scale_amount=1)
-                self.db.update_job(job['id'], 'PENDING')
-                logging.info("Scheduled job id: %s", job['id'])
+                await self.pubsub.publish_job('pipeline-zen-jobs', job)
+                await self.cluster_orchestrator.scale_cluster(job['cluster'], scale_amount=1)
+                await self.db.update_job(job['id'], 'PENDING')
+                logger.info(f"Scheduled job id: {job['id']}")
             await asyncio.sleep(10)  # Check for new jobs every 10 seconds
 
     async def _monitor_jobs(self) -> None:
-        """
-        Monitors the running jobs to ensure they are progressing.
-        """
-        logging.info("Starting job monitoring")
+        """Monitor the running jobs to ensure they are progressing."""
+        logger.info("Starting job monitoring")
         while self.running:
-            running_jobs = self.db.get_jobs_by_status('RUNNING')
+            running_jobs = await self.db.get_jobs_by_status('RUNNING')
             for job in running_jobs:
                 # TODO: Implement job heartbeat monitoring
                 pass
             await asyncio.sleep(60)  # Monitor jobs every minute
 
     async def _listen_for_heartbeats(self) -> None:
-        """
-        Listens for job heartbeats to update their status.
-        """
-        logging.info("Listening for job heartbeats")
+        """Listen for job heartbeats to update their status."""
+        logger.info("Listening for job heartbeats")
 
         async def heartbeat_callback(message_data: str) -> None:
             data = json.loads(message_data)
             job_id = data['job_id']
             status = data['status']
-            self.db.update_job(job_id, status)
-            logging.info("Updated job id: %s with status: %s", job_id, status)
+            await self.db.update_job(job_id, status)
+            logger.info(f"Updated job id: {job_id} with status: {status}")
 
         await self.pubsub.listen_for_heartbeats('pipeline-zen-jobs-heartbeats', heartbeat_callback)
 
     async def stop_job(self, job_id: str) -> bool:
         """
-        Stops a running job.
+        Stop a running job.
 
         Args:
             job_id (str): The ID of the job to stop.
@@ -100,29 +105,29 @@ class Scheduler:
         Returns:
             bool: True if the job was stopped, False otherwise.
         """
-        job = self.db.get_job(job_id)
+        job = await self.db.get_job(job_id)
         if job and job['status'] == 'RUNNING':
             await self.pubsub.publish_stop_signal('pipeline-zen-jobs-stop', job_id)
-            self.db.update_job(job_id, 'STOPPING')
-            logging.info("Stopped job id: %s", job_id)
+            await self.db.update_job(job_id, 'STOPPING')
+            logger.info(f"Stopped job id: {job_id}")
             return True
-        logging.warning("Job id: %s not running or does not exist", job_id)
+        logger.warning(f"Job id: {job_id} not running or does not exist")
         return False
 
     async def get_status(self) -> Dict[str, Any]:
         """
-        Gets the status of the scheduler, including cluster and job statuses.
+        Get the status of the scheduler, including cluster and job statuses.
 
         Returns:
             Dict[str, Any]: A dictionary with the scheduler status.
         """
         cluster_status = await self.cluster_orchestrator.get_cluster_status()
-        running_jobs = self.db.get_jobs_by_status('RUNNING')
-        pending_jobs = self.db.get_jobs_by_status('PENDING')
+        running_jobs = await self.db.get_jobs_by_status('RUNNING')
+        pending_jobs = await self.db.get_jobs_by_status('PENDING')
         status = {
             'cluster_status': cluster_status,
             'running_jobs': len(running_jobs),
             'pending_jobs': len(pending_jobs)
         }
-        logging.info("Scheduler status: %s", status)
+        logger.info(f"Scheduler status: {status}")
         return status
