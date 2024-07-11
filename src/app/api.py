@@ -19,7 +19,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 # Configuration
-PROJECT_ID = os.getenv("PROJECT_ID", "your-project-id")
+PROJECT_ID = os.getenv("PROJECT_ID", "neat-airport-407301")
 DB_PATH = os.getenv("DB_PATH", "scheduler-zen.sqlite")
 PZ_ENV = os.getenv("PZ_ENV", "local")
 # Cluster configurations

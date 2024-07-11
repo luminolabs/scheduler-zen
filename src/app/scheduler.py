@@ -66,7 +66,7 @@ class Scheduler:
         while self.running:
             new_jobs = await self.db.get_jobs_by_status('NEW')
             for job in new_jobs:
-                await self.pubsub.publish_job('pipeline-zen-jobs', job)
+                await self.pubsub.publish_job('pipeline-zen-jobs-start', job)
                 await self.cluster_orchestrator.scale_cluster(job['cluster'], scale_amount=1)
                 await self.db.update_job(job['id'], 'PENDING')
                 logger.info(f"Scheduled job id: {job['id']}")
@@ -93,7 +93,7 @@ class Scheduler:
             await self.db.update_job(job_id, status)
             logger.info(f"Updated job id: {job_id} with status: {status}")
 
-        await self.pubsub.listen_for_heartbeats('pipeline-zen-jobs-heartbeats', heartbeat_callback)
+        await self.pubsub.listen_for_heartbeats('pipeline-zen-jobs-heartbeats-scheduler', heartbeat_callback)
 
     async def stop_job(self, job_id: str) -> bool:
         """
