@@ -69,7 +69,7 @@ class PubSubClient:
             message.ack()
 
         def callback_wrapper(message):
-            asyncio.create_task(process_message(message))
+            asyncio.run(process_message(message))
 
         streaming_pull_future = self.subscriber.subscribe(subscription_path, callback=callback_wrapper)
         with self.subscriber:

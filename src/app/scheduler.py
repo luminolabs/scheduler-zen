@@ -68,8 +68,8 @@ class Scheduler:
             for job in new_jobs:
                 await self.pubsub.publish_job('pipeline-zen-jobs-start', job)
                 await self.cluster_orchestrator.scale_cluster(job['cluster'], scale_amount=1)
-                await self.db.update_job(job['id'], 'PENDING')
-                logger.info(f"Scheduled job id: {job['id']}")
+                await self.db.update_job(job['job_id'], 'PENDING')
+                logger.info(f"Scheduled job id: {job['job_id']}")
             await asyncio.sleep(10)  # Check for new jobs every 10 seconds
 
     async def _monitor_jobs(self) -> None:

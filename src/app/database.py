@@ -44,7 +44,7 @@ class Database:
         Returns:
             str: The ID of the newly added job.
         """
-        job_id = job_data.get('id') or self._generate_job_id()
+        job_id = job_data.get('job_id') or self._generate_job_id()
         workflow = job_data['workflow']
         args = json.dumps(job_data['args'])
         keep_alive = int(job_data['keep_alive'])
@@ -87,7 +87,7 @@ class Database:
                 row = await cursor.fetchone()
                 if row:
                     return {
-                        'id': row[0],
+                        'job_id': row[0],
                         'workflow': row[1],
                         'args': json.loads(row[2]),
                         'keep_alive': bool(row[3]),
@@ -112,7 +112,7 @@ class Database:
                 rows = await cursor.fetchall()
                 jobs = [
                     {
-                        'id': row[0],
+                        'job_id': row[0],
                         'workflow': row[1],
                         'args': json.loads(row[2]),
                         'keep_alive': bool(row[3]),

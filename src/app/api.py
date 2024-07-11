@@ -24,6 +24,7 @@ DB_PATH = os.getenv("DB_PATH", "scheduler-zen.sqlite")
 PZ_ENV = os.getenv("PZ_ENV", "local")
 # Cluster configurations
 CLUSTER_CONFIGS: Dict[str, List[str]] = {
+    'local': ['us-vasilis1', 'gr-vasilis1'],
     '8xa100-40gb': ['asia-northeast1', 'asia-northeast-3', 'asia-southeast1',
                     'europe-west4', 'me-west1',
                     'us-central1', 'us-west1', 'us-west3', 'us-west4'],
@@ -32,6 +33,7 @@ CLUSTER_CONFIGS: Dict[str, List[str]] = {
 
 # Define the JobRequest model, that will be used to create new jobs
 class JobRequest(BaseModel):
+    job_id: str
     workflow: str
     args: Dict[str, Any]
     keep_alive: bool
