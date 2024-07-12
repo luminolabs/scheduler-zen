@@ -1,0 +1,36 @@
+# GCP
+gcp_project: neat-airport-407301
+
+# Database
+db_path: scheduler-zen.sqlite
+
+# Fake services
+use_fake_mig_manager: false
+
+# Available GPU types and their supported regions
+gpu_regions:
+  local:
+    - us-vasilis1
+    - gr-vasilis1
+  v100:
+    - us-central1
+  a100-40gb:
+    - asia-northeast1
+    - asia-northeast3
+    - asia-southeast1
+    - europe-west4
+    - me-west1
+    - us-central1
+    - us-west1
+    - us-west3
+    - us-west4
+
+# Available MIG clusters and their GPU types
+mig_clusters:
+  local: local
+  1xv100: v100
+  1xa100-40gb: a100-40gb
+  2xa100-40gb: a100-40gb
+  4xa100-40gb: a100-40gb
+  8xa100-40gb: a100-40gb
+  16xa100-40gb: a100-40gb

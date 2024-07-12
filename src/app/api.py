@@ -7,6 +7,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Dict, Any, List
 
+from app.config_manager import config
 from scheduler import Scheduler
 from cluster_orchestrator import ClusterOrchestrator
 from database import Database
@@ -17,18 +18,6 @@ from fake_mig_manager import FakeMigManager
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
-# Configuration
-PROJECT_ID = os.getenv("PROJECT_ID", "neat-airport-407301")
-DB_PATH = os.getenv("DB_PATH", "scheduler-zen.sqlite")
-PZ_ENV = os.getenv("PZ_ENV", "local")
-# Cluster configurations
-CLUSTER_CONFIGS: Dict[str, List[str]] = {
-    'local': ['us-vasilis1', 'gr-vasilis1'],
-    '8xa100-40gb': ['asia-northeast1', 'asia-northeast-3', 'asia-southeast1',
-                    'europe-west4', 'me-west1',
-                    'us-central1', 'us-west1', 'us-west3', 'us-west4'],
-}
 
 
 # Define the JobRequest model, that will be used to create new jobs
@@ -42,17 +31,18 @@ class JobRequest(BaseModel):
 
 def init_scheduler():
     """Set up components needed for and initialize the scheduler."""
-    db = Database(DB_PATH)
-    pubsub = PubSubClient(PROJECT_ID)
+    db = Database(config.db_path)
+    pubsub = PubSubClient(config.gcp_project)
 
-    if PZ_ENV == 'local':
+    if config.use_fake_mig_manager:
         logger.info("Using FakeMigManager for local environment")
-        mig_manager = FakeMigManager(PROJECT_ID)
+        mig_manager = FakeMigManager(config.gcp_project)
     else:
         logger.info("Using real MigManager for non-local environment")
-        mig_manager = MigManager(PROJECT_ID)
+        mig_manager = MigManager(config.gcp_project)
 
-    cluster_orchestrator = ClusterOrchestrator(PROJECT_ID, CLUSTER_CONFIGS, mig_manager)
+    cluster_config = {k: config.gpu_regions[v] for k, v in config.mig_clusters.items()}
+    cluster_orchestrator = ClusterOrchestrator(config.gcp_project, cluster_config, mig_manager)
     return Scheduler(db, pubsub, cluster_orchestrator)
 
 
@@ -135,5 +125,5 @@ async def get_status():
 
 if __name__ == "__main__":
     import uvicorn
-    logger.info(f"Starting API server in {PZ_ENV} environment")
+    logger.info(f"Starting API server in {SZ_ENV} environment")
     uvicorn.run(app, host="0.0.0.0", port=8000)
