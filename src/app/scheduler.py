@@ -90,8 +90,9 @@ class Scheduler:
             data = json.loads(message_data)
             job_id = data['job_id']
             status = data['status']
-            await self.db.update_job(job_id, status)
-            logger.info(f"Updated job id: {job_id} with status: {status}")
+            vm_name = data['vm_name']
+            await self.db.update_job(job_id, status, vm_name)
+            logger.info(f"Updated job id: {job_id} with status: {status} and VM name: {vm_name}")
 
         await self.pubsub.listen_for_heartbeats('pipeline-zen-jobs-heartbeats-scheduler', heartbeat_callback)
 

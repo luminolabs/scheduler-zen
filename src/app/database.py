@@ -30,7 +30,8 @@ class Database:
                                 args TEXT,
                                 keep_alive INTEGER,
                                 cluster TEXT,
-                                status TEXT)''')
+                                status TEXT,
+                                vm_name TEXT)''')
             await db.commit()
         logger.info("Database tables created")
 
@@ -59,16 +60,17 @@ class Database:
         logger.info(f"Added job with id: {job_id}, workflow: {workflow}, cluster: {cluster}")
         return job_id
 
-    async def update_job(self, job_id: str, status: str) -> None:
+    async def update_job(self, job_id: str, status: str, vm_name: Optional[str] = None) -> None:
         """
         Update the status of a job in the database.
 
         Args:
             job_id (str): The ID of the job.
             status (str): The new status of the job.
+            vm_name (Optional[str]): The name of the VM assigned to the job.
         """
         async with aiosqlite.connect(self.db_path) as db:
-            await db.execute('UPDATE jobs SET status = ? WHERE id = ?', (status, job_id))
+            await db.execute('UPDATE jobs SET status = ?, vm_name = ? WHERE id = ?', (status, job_id, vm_name))
             await db.commit()
         logger.info(f"Updated job id: {job_id} to status: {status}")
 
@@ -92,7 +94,8 @@ class Database:
                         'args': json.loads(row[2]),
                         'keep_alive': bool(row[3]),
                         'cluster': row[4],
-                        'status': row[5]
+                        'status': row[5],
+                        'vm_name': row[6]
                     }
         logger.info(f"Retrieved job with id: {job_id}")
         return None
@@ -117,7 +120,8 @@ class Database:
                         'args': json.loads(row[2]),
                         'keep_alive': bool(row[3]),
                         'cluster': row[4],
-                        'status': row[5]
+                        'status': row[5],
+                        'vm_name': row[6]
                     } for row in rows
                 ]
         logger.info(f"Retrieved {len(jobs)} jobs with status: {status}")

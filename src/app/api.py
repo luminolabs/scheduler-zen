@@ -125,5 +125,5 @@ async def get_status():
 
 if __name__ == "__main__":
     import uvicorn
-    logger.info(f"Starting API server in {SZ_ENV} environment")
+    logger.info(f"Starting API server")
     uvicorn.run(app, host="0.0.0.0", port=8000)
