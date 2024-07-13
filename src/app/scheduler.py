@@ -121,7 +121,7 @@ class Scheduler:
         Returns:
             Dict[str, int]: A dictionary mapping cluster names to pending job counts.
         """
-        pending_jobs = await self.db.get_pending_jobs()
+        pending_jobs = await self.db.get_jobs_by_status(['PENDING', 'RUNNING'])
         pending_jobs_by_cluster = {}
         for job in pending_jobs:
             cluster = job['cluster']

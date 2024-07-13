@@ -58,7 +58,7 @@ class ClusterManager:
             current_target_size, running_vm_count = await self.mig_manager.get_target_and_running_vm_counts(region, mig_name)
 
             # Calculate new target size
-            new_target_size = min(running_vm_count + pending_jobs_count, self.max_scale_limit)
+            new_target_size = min(max(running_vm_count, pending_jobs_count), self.max_scale_limit)
 
             if new_target_size != current_target_size:
                 await self.mig_manager.scale_mig(region, mig_name, new_target_size)

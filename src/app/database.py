@@ -100,18 +100,23 @@ class Database:
         logger.info(f"Retrieved job with id: {job_id}")
         return None
 
-    async def get_jobs_by_status(self, status: str) -> List[Dict[str, Any]]:
+    async def get_jobs_by_status(self, statuses: List[str]) -> List[Dict[str, Any]]:
         """
         Retrieve all jobs with a given status.
 
         Args:
-            status (str): The status to filter jobs by.
+            statuses (str): The status to filter jobs by.
 
         Returns:
             List[Dict[str, Any]]: A list of dictionaries with job details.
         """
+        # Ensure status is a list
+        if not isinstance(statuses, list):
+            statuses = [statuses]
+        # Generate the required number of placeholders
+        placeholders = ','.join('?' for _ in statuses)
         async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute('SELECT * FROM jobs WHERE status = ?', (status,)) as cursor:
+            async with db.execute(f'SELECT * FROM jobs WHERE status IN ({placeholders})', [*statuses]) as cursor:
                 rows = await cursor.fetchall()
                 jobs = [
                     {
@@ -124,35 +129,8 @@ class Database:
                         'vm_name': row[6]
                     } for row in rows
                 ]
-        logger.info(f"Retrieved {len(jobs)} jobs with status: {status}")
+        logger.info(f"Retrieved {len(jobs)} jobs with status: {statuses}")
         return jobs
-
-    async def get_pending_jobs(self) -> List[Dict[str, Any]]:
-        """
-        Retrieve all pending jobs with their cluster information.
-
-        Returns:
-            List[Dict[str, Any]]: A list of dictionaries containing job information.
-        """
-        async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute('SELECT id, cluster FROM jobs WHERE status = "PENDING"') as cursor:
-                rows = await cursor.fetchall()
-                jobs = [{'job_id': row[0], 'cluster': row[1]} for row in rows]
-        logger.info(f"Retrieved {len(jobs)} pending jobs")
-        return jobs
-
-    async def get_pending_jobs_count(self) -> int:
-        """
-        Retrieve the count of pending jobs.
-
-        Returns:
-            int: The number of pending jobs.
-        """
-        async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute('SELECT COUNT(*) FROM jobs WHERE status = "PENDING"') as cursor:
-                (count,) = await cursor.fetchone()
-        logger.info(f"Retrieved pending jobs count: {count}")
-        return count
 
     @staticmethod
     def _generate_job_id() -> str:
