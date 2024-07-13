@@ -70,7 +70,7 @@ class Database:
             vm_name (Optional[str]): The name of the VM assigned to the job.
         """
         async with aiosqlite.connect(self.db_path) as db:
-            await db.execute('UPDATE jobs SET status = ?, vm_name = ? WHERE id = ?', (status, job_id, vm_name))
+            await db.execute('UPDATE jobs SET status = ?, vm_name = ? WHERE id = ?', (status, vm_name, job_id))
             await db.commit()
         logger.info(f"Updated job id: {job_id} to status: {status}")
 
@@ -126,6 +126,33 @@ class Database:
                 ]
         logger.info(f"Retrieved {len(jobs)} jobs with status: {status}")
         return jobs
+
+    async def get_pending_jobs(self) -> List[Dict[str, Any]]:
+        """
+        Retrieve all pending jobs with their cluster information.
+
+        Returns:
+            List[Dict[str, Any]]: A list of dictionaries containing job information.
+        """
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute('SELECT id, cluster FROM jobs WHERE status = "PENDING"') as cursor:
+                rows = await cursor.fetchall()
+                jobs = [{'job_id': row[0], 'cluster': row[1]} for row in rows]
+        logger.info(f"Retrieved {len(jobs)} pending jobs")
+        return jobs
+
+    async def get_pending_jobs_count(self) -> int:
+        """
+        Retrieve the count of pending jobs.
+
+        Returns:
+            int: The number of pending jobs.
+        """
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute('SELECT COUNT(*) FROM jobs WHERE status = "PENDING"') as cursor:
+                (count,) = await cursor.fetchone()
+        logger.info(f"Retrieved pending jobs count: {count}")
+        return count
 
     @staticmethod
     def _generate_job_id() -> str:

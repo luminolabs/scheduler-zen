@@ -28,9 +28,19 @@ gpu_regions:
 # Available MIG clusters and their GPU types
 mig_clusters:
   local: local
-  1xv100: v100
-  1xa100-40gb: a100-40gb
-  2xa100-40gb: a100-40gb
+#  1xv100: v100
+#  1xa100-40gb: a100-40gb
+#  2xa100-40gb: a100-40gb
   4xa100-40gb: a100-40gb
-  8xa100-40gb: a100-40gb
-  16xa100-40gb: a100-40gb
+#  8xa100-40gb: a100-40gb
+#  16xa100-40gb: a100-40gb
+
+# Max scale limits for each MIG cluster
+max_scale_limits:
+  local: 1
+  1xv100: 32
+  1xa100-40gb: 16
+  2xa100-40gb: 8
+  4xa100-40gb: 4
+  8xa100-40gb: 2
+  16xa100-40gb: 1

@@ -1,7 +1,8 @@
 import logging
-from google.cloud import compute_v1
 import asyncio
-from typing import List
+from typing import List, Dict, Tuple
+from google.cloud import compute_v1
+from google.api_core import retry, retry_async
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -20,8 +21,10 @@ class MigManager:
         """
         self.project_id = project_id
         self.client = compute_v1.RegionInstanceGroupManagersClient()
+        self.semaphore = asyncio.Semaphore(10)  # Limit to 10 concurrent requests
         logger.info(f"MigManager initialized with project_id: {project_id}")
 
+    @retry_async.AsyncRetry()
     async def scale_mig(self, region: str, mig_name: str, target_size: int) -> None:
         """
         Scale a specified MIG to a new size.
@@ -31,53 +34,49 @@ class MigManager:
             mig_name (str): The name of the MIG.
             target_size (int): The new size of the MIG.
         """
-        logger.info(f"Scaling MIG: {mig_name}, region: {region} to new size: {target_size}")
-        request = compute_v1.ResizeRegionInstanceGroupManagerRequest(
-            project=self.project_id,
-            region=region,
-            instance_group_manager=mig_name,
-            size=target_size
-        )
-        operation = await asyncio.to_thread(self.client.resize, request)
-        await asyncio.to_thread(operation.result)
+        async with self.semaphore:
+            request = compute_v1.ResizeRegionInstanceGroupManagerRequest(
+                project=self.project_id,
+                region=region,
+                instance_group_manager=mig_name,
+                size=target_size
+            )
+            operation = await asyncio.to_thread(self.client.resize, request)
 
-    async def list_vms_in_mig(self, region: str, mig_name: str) -> List[str]:
+            logger.info(f"MIG: {mig_name}: Scaled to new size: {target_size}")
+            await asyncio.to_thread(operation.result)
+
+    @retry_async.AsyncRetry()
+    async def get_target_and_running_vm_counts(self, region: str, mig_name: str) -> Tuple[int, int]:
         """
-        List the VMs in a specified MIG.
+        Get the target size and list of VMs for a specified MIG.
 
         Args:
             region (str): The region of the MIG.
             mig_name (str): The name of the MIG.
 
         Returns:
-            List[str]: A list of VM names.
+            Tuple[int, List[str]]: The target size and list of VM names.
         """
-        logger.info(f"Listing VMs in MIG: {mig_name}, region: {region}")
-        request = compute_v1.ListManagedInstancesRegionInstanceGroupManagersRequest(
-            project=self.project_id,
-            region=region,
-            instance_group_manager=mig_name
-        )
-        response = await asyncio.to_thread(self.client.list_managed_instances, request)
-        return [instance.instance.split('/')[-1] for instance in response.managed_instances]
-
-    async def delete_vm(self, region: str, mig_name: str, instance_name: str) -> None:
-        """
-        Delete a specific VM from a MIG.
-
-        Args:
-            region (str): The region of the MIG.
-            mig_name (str): The name of the MIG.
-            instance_name (str): The name of the instance to delete.
-        """
-        logger.info(f"Deleting VM: {instance_name} from MIG: {mig_name}, region: {region}")
-        request = compute_v1.DeleteInstancesRegionInstanceGroupManagerRequest(
-            project=self.project_id,
-            region=region,
-            instance_group_manager=mig_name,
-            region_instance_group_managers_delete_instances_request_body=compute_v1.RegionInstanceGroupManagersDeleteInstancesRequest(
-                instances=[instance_name]
+        async with self.semaphore:
+            # Get target size
+            size_request = compute_v1.GetRegionInstanceGroupManagerRequest(
+                project=self.project_id,
+                region=region,
+                instance_group_manager=mig_name
             )
-        )
-        operation = await asyncio.to_thread(self.client.delete_instances, request)
-        await asyncio.to_thread(operation.result)
+            size_response = await asyncio.to_thread(self.client.get, size_request)
+            target_size = size_response.target_size
+
+            # Get list of running VMs
+            list_request = compute_v1.ListManagedInstancesRegionInstanceGroupManagersRequest(
+                project=self.project_id,
+                region=region,
+                instance_group_manager=mig_name
+            )
+            list_response = await asyncio.to_thread(self.client.list_managed_instances, list_request)
+            running_vm_list = [instance.instance.split('/')[-1] for instance in list_response.managed_instances
+                               if instance.instance_status == "RUNNING"]
+
+            logger.info(f"MIG: {mig_name}: Got target size: {target_size}, running VMs: {len(running_vm_list)}")
+            return target_size, len(running_vm_list)

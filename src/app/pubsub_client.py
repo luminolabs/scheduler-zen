@@ -25,7 +25,7 @@ class PubSubClient:
         self.subscriber = pubsub_v1.SubscriberClient()
         logger.info(f"PubSubClient initialized with project_id: {project_id}")
 
-    async def publish_job(self, topic_name: str, job_data: Dict[str, Any]) -> None:
+    async def publish_start_signal(self, topic_name: str, job_data: Dict[str, Any]) -> None:
         """
         Publish a job to a specified Pub/Sub topic.
 

@@ -1,11 +1,10 @@
-import os
 import logging
 import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import Dict, Any, List
+from typing import Dict, Any
 
 from app.config_manager import config
 from scheduler import Scheduler
@@ -34,15 +33,20 @@ def init_scheduler():
     db = Database(config.db_path)
     pubsub = PubSubClient(config.gcp_project)
 
+    # Initialize the cluster orchestrator
+    cluster_config = {k: config.gpu_regions[v] for k, v in config.mig_clusters.items()}
+
     if config.use_fake_mig_manager:
         logger.info("Using FakeMigManager for local environment")
         mig_manager = FakeMigManager(config.gcp_project)
     else:
         logger.info("Using real MigManager for non-local environment")
         mig_manager = MigManager(config.gcp_project)
+        # Remove local cluster if not using fake mig manager
+        del cluster_config['local']
 
-    cluster_config = {k: config.gpu_regions[v] for k, v in config.mig_clusters.items()}
-    cluster_orchestrator = ClusterOrchestrator(config.gcp_project, cluster_config, mig_manager)
+    # Initialize the cluster orchestrator with max scale limits
+    cluster_orchestrator = ClusterOrchestrator(config.gcp_project, cluster_config, mig_manager, config.max_scale_limits)
     return Scheduler(db, pubsub, cluster_orchestrator)
 
 

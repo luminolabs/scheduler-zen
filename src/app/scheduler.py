@@ -8,14 +8,22 @@ from pubsub_client import PubSubClient
 from cluster_orchestrator import ClusterOrchestrator
 
 # Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 
 class Scheduler:
     """Manages the scheduling of jobs in the system."""
 
-    def __init__(self, db: Database, pubsub: PubSubClient, cluster_orchestrator: ClusterOrchestrator):
+    def __init__(
+            self,
+            db: Database,
+            pubsub: PubSubClient,
+            cluster_orchestrator: ClusterOrchestrator
+    ) -> None:
         """
         Initialize the Scheduler.
 
@@ -28,6 +36,7 @@ class Scheduler:
         self.pubsub = pubsub
         self.cluster_orchestrator = cluster_orchestrator
         self.running = False
+        self.cluster_status: Dict[str, Dict[str, Any]] = {}
         logger.info("Scheduler initialized")
 
     async def start(self) -> None:
@@ -37,8 +46,8 @@ class Scheduler:
         logger.info("Scheduler started")
         await asyncio.gather(
             self._schedule_jobs(),
-            self._monitor_jobs(),
-            self._listen_for_heartbeats()
+            self._listen_for_heartbeats(),
+            self._monitor_and_scale_clusters()
         )
 
     async def stop(self) -> None:
@@ -61,32 +70,27 @@ class Scheduler:
         return job_id
 
     async def _schedule_jobs(self) -> None:
-        """Schedule new jobs and scale the cluster accordingly."""
+        """Schedule new jobs and update their status."""
         logger.info("Starting job scheduling")
         while self.running:
             new_jobs = await self.db.get_jobs_by_status('NEW')
             for job in new_jobs:
-                await self.pubsub.publish_job('pipeline-zen-jobs-start', job)
-                await self.cluster_orchestrator.scale_cluster(job['cluster'], scale_amount=1)
+                await self.pubsub.publish_start_signal('pipeline-zen-jobs-start', job)
                 await self.db.update_job(job['job_id'], 'PENDING')
-                logger.info(f"Scheduled job id: {job['job_id']}")
-            await asyncio.sleep(10)  # Check for new jobs every 10 seconds
-
-    async def _monitor_jobs(self) -> None:
-        """Monitor the running jobs to ensure they are progressing."""
-        logger.info("Starting job monitoring")
-        while self.running:
-            running_jobs = await self.db.get_jobs_by_status('RUNNING')
-            for job in running_jobs:
-                # TODO: Implement job heartbeat monitoring
-                pass
-            await asyncio.sleep(60)  # Monitor jobs every minute
+                logger.info(f"Scheduled job id: {job['job_id']} for cluster: {job['cluster']}")
+            await asyncio.sleep(5)
 
     async def _listen_for_heartbeats(self) -> None:
         """Listen for job heartbeats to update their status."""
         logger.info("Listening for job heartbeats")
 
         async def heartbeat_callback(message_data: str) -> None:
+            """
+            Process heartbeat messages and update job status.
+
+            Args:
+                message_data (str): JSON-encoded heartbeat data.
+            """
             data = json.loads(message_data)
             job_id = data['job_id']
             status = data['status']
@@ -94,7 +98,35 @@ class Scheduler:
             await self.db.update_job(job_id, status, vm_name)
             logger.info(f"Updated job id: {job_id} with status: {status} and VM name: {vm_name}")
 
-        await self.pubsub.listen_for_heartbeats('pipeline-zen-jobs-heartbeats-scheduler', heartbeat_callback)
+        await self.pubsub.listen_for_heartbeats('pipeline-zen-jobs-heartbeats-scheduler',
+                                                heartbeat_callback)
+
+    async def _monitor_and_scale_clusters(self) -> None:
+        """Monitor cluster status and scale as necessary."""
+        logger.info("Starting cluster monitoring and scaling")
+        while self.running:
+            # Update cluster status
+            self.cluster_status = await self.cluster_orchestrator.update_status()
+            logger.info(f"Updated cluster status: {self.cluster_status}")
+            # Get information needed for scaling
+            pending_jobs = await self._get_pending_jobs_by_cluster()
+            # Scale clusters
+            await self.cluster_orchestrator.scale_clusters(pending_jobs)
+            await asyncio.sleep(10)
+
+    async def _get_pending_jobs_by_cluster(self) -> Dict[str, int]:
+        """
+        Get the count of pending jobs for each cluster.
+
+        Returns:
+            Dict[str, int]: A dictionary mapping cluster names to pending job counts.
+        """
+        pending_jobs = await self.db.get_pending_jobs()
+        pending_jobs_by_cluster = {}
+        for job in pending_jobs:
+            cluster = job['cluster']
+            pending_jobs_by_cluster[cluster] = pending_jobs_by_cluster.get(cluster, 0) + 1
+        return pending_jobs_by_cluster
 
     async def stop_job(self, job_id: str) -> bool:
         """
@@ -122,11 +154,10 @@ class Scheduler:
         Returns:
             Dict[str, Any]: A dictionary with the scheduler status.
         """
-        cluster_status = await self.cluster_orchestrator.get_cluster_status()
         running_jobs = await self.db.get_jobs_by_status('RUNNING')
         pending_jobs = await self.db.get_jobs_by_status('PENDING')
         status = {
-            'cluster_status': cluster_status,
+            'cluster_status': self.cluster_status,
             'running_jobs': len(running_jobs),
             'pending_jobs': len(pending_jobs)
         }
