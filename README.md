@@ -1,6 +1,19 @@
 # Pipeline Zen Jobs Scheduler
 
-Pipeline Zen Jobs Scheduler is a system designed to manage and scale compute resources for job processing across multiple clusters and regions in Google Cloud Platform (GCP).
+Pipeline Zen Jobs Scheduler is a system designed to manage and scale compute resources for job processing across 
+multiple clusters and regions in Google Cloud Platform (GCP).
+
+Project Purpose
+The Pipeline Zen Jobs Scheduler is designed to optimize the allocation and utilization of GPU resources 
+across multiple cloud regions. In environments where GPU availability in a single region can be limited or 
+unpredictable, this system enables efficient sourcing of GPUs from various geographical locations. By 
+leveraging a multi-region approach, the scheduler significantly reduces wait times for GPU resources, ensuring 
+that computational jobs can start promptly. Additionally, the system implements automatic scaling of 
+Managed Instance Groups (MIGs), dynamically adjusting the number of GPU instances up or down based on workload 
+demands. This intelligent scaling mechanism optimizes resource usage and cost-efficiency, providing the right 
+amount of computational power when and where it's needed most. The Pipeline Zen Jobs Scheduler thus offers a 
+robust solution for organizations requiring flexible, responsive, and efficient management of GPU resources 
+for their computational workloads.
 
 ## System Architecture
 
@@ -13,6 +26,8 @@ The system is composed of several key components that work together to manage jo
 5. PubSub Client
 
 ## High Level System Design Diagram
+
+To zoom in, click on the image below, and then open the image in a new tab.
 
 [![high-level-system-design.png](assets%2Fhigh-level-system-design.png)](assets/high-level-system-design.png)
 
