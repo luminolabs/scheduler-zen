@@ -76,7 +76,11 @@ class Scheduler:
         while self.running:
             new_jobs = await self.db.get_jobs_by_status('NEW')
             for job in new_jobs:
+                # Add job_id to args for the training workflow to pick up
+                job['args']['job_id'] = job['job_id']
+                # Publish start signal to Pub/Sub
                 await self.pubsub.publish_start_signal('pipeline-zen-jobs-start', job)
+                # Update job status to PENDING in the database
                 await self.db.update_job(job['job_id'], 'PENDING')
                 logger.info(f"Scheduled job id: {job['job_id']} for cluster: {job['cluster']}")
             await asyncio.sleep(5)
@@ -92,13 +96,25 @@ class Scheduler:
             Args:
                 message_data (str): JSON-encoded heartbeat data.
             """
+            # Parse message data
             data = json.loads(message_data)
             job_id = data['job_id']
-            status = data['status']
+            new_status = data['status']
             vm_name = data['vm_name']
             region = get_region_from_vm_name(vm_name)
-            await self.db.update_job(job_id, status, vm_name, region)
-            logger.info(f"Updated job id: {job_id} with status: {status} and VM name: {vm_name}")
+
+            # Ignore outdated heartbeats; only update if the status is newer
+            # because Pub/Sub messages aren't ordered.
+            # This is mostly to handle the case where the Scheduler restarts or is down for a while and starts again.
+            job = await self.db.get_job(job_id)
+            old_status = job['status']
+            heartbeat_ordered_job_statuses = ['RUNNING', 'STOPPED', 'COMPLETED', 'FAILED']
+            if job and heartbeat_ordered_job_statuses.index(new_status) < heartbeat_ordered_job_statuses.index(old_status):
+                return
+
+            # Update job status and timestamp in the database
+            await self.db.update_job(job_id, new_status, vm_name, region)
+            logger.info(f"Updated job id: {job_id} with status: {new_status} and VM name: {vm_name}")
 
         await self.pubsub.listen_for_heartbeats('pipeline-zen-jobs-heartbeats-scheduler',
                                                 heartbeat_callback)

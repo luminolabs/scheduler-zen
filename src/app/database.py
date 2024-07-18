@@ -26,12 +26,15 @@ class Database:
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute('''CREATE TABLE IF NOT EXISTS jobs (
                                 id TEXT PRIMARY KEY,
+                                created_at DATETIME,
+                                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                                 workflow TEXT,
                                 args TEXT,
                                 keep_alive INTEGER,
                                 cluster TEXT,
                                 status TEXT,
-                                vm_name TEXT)''')
+                                vm_name TEXT,
+                                region TEXT)''')
             await db.commit()
         logger.info("Database tables created")
 
@@ -53,7 +56,8 @@ class Database:
         status = 'NEW'
 
         async with aiosqlite.connect(self.db_path) as db:
-            await db.execute('INSERT INTO jobs (id, workflow, args, keep_alive, cluster, status) VALUES (?, ?, ?, ?, ?, ?)',
+            await db.execute('INSERT INTO jobs (id, created_at, workflow, args, keep_alive, cluster, status) '
+                             'VALUES (?, datetime(), ?, ?, ?, ?, ?)',
                              (job_id, workflow, args, keep_alive, cluster, status))
             await db.commit()
 
@@ -90,19 +94,8 @@ class Database:
         async with aiosqlite.connect(self.db_path) as db:
             async with db.execute('SELECT * FROM jobs WHERE id = ?', (job_id,)) as cursor:
                 row = await cursor.fetchone()
-                if row:
-                    return {
-                        'job_id': row[0],
-                        'workflow': row[1],
-                        'args': json.loads(row[2]),
-                        'keep_alive': bool(row[3]),
-                        'cluster': row[4],
-                        'status': row[5],
-                        'vm_name': row[6],
-                        'region': row[7],
-                    }
-        logger.info(f"Retrieved job with id: {job_id}")
-        return None
+                logger.info(f"Retrieved job with id: {job_id}")
+                return self._row_to_dict(row)
 
     async def get_jobs_by_status(self, statuses: Union[str, List[str]]) -> List[Dict[str, Any]]:
         """
@@ -122,18 +115,7 @@ class Database:
         async with aiosqlite.connect(self.db_path) as db:
             async with db.execute(f'SELECT * FROM jobs WHERE status IN ({placeholders})', [*statuses]) as cursor:
                 rows = await cursor.fetchall()
-                jobs = [
-                    {
-                        'job_id': row[0],
-                        'workflow': row[1],
-                        'args': json.loads(row[2]),
-                        'keep_alive': bool(row[3]),
-                        'cluster': row[4],
-                        'status': row[5],
-                        'vm_name': row[6],
-                        'region': row[7],
-                    } for row in rows
-                ]
+                jobs = [self._row_to_dict(row) for row in rows]
         logger.info(f"Retrieved {len(jobs)} jobs with status: {statuses}")
         return jobs
 
@@ -148,3 +130,26 @@ class Database:
         # This is a simple implementation. You might want to use a more robust method in production.
         import uuid
         return str(uuid.uuid4())
+
+    @staticmethod
+    def _row_to_dict(row: Optional[List]) -> Optional[Dict[str, Any]]:
+        """
+        Convert a database row to a dictionary.
+
+        Args:
+            row: A row from the database.
+        Returns:
+            dict: A dictionary representation of the row.
+        """
+        return {
+            'job_id': row[0],
+            'created_at': row[1],
+            'updated_at': row[2],
+            'workflow': row[3],
+            'args': json.loads(row[4]),
+            'keep_alive': bool(row[5]),
+            'cluster': row[6],
+            'status': row[7],
+            'vm_name': row[8],
+            'region': row[9],
+        } if row else None
