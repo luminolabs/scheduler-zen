@@ -108,7 +108,7 @@ class Scheduler:
             # This is mostly to handle the case where the Scheduler restarts or is down for a while and starts again.
             job = await self.db.get_job(job_id)
             old_status = job['status']
-            heartbeat_ordered_job_statuses = ['RUNNING', 'STOPPED', 'COMPLETED', 'FAILED']
+            heartbeat_ordered_job_statuses = ['NEW', 'PENDING', 'RUNNING', 'STOPPED', 'COMPLETED', 'FAILED']
             if job and heartbeat_ordered_job_statuses.index(new_status) < heartbeat_ordered_job_statuses.index(old_status):
                 return
 
