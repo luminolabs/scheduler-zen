@@ -3,6 +3,7 @@ import json
 import logging
 from typing import Any, Dict
 
+from app.utils import get_region_from_vm_name
 from database import Database
 from pubsub_client import PubSubClient
 from cluster_orchestrator import ClusterOrchestrator
@@ -95,7 +96,8 @@ class Scheduler:
             job_id = data['job_id']
             status = data['status']
             vm_name = data['vm_name']
-            await self.db.update_job(job_id, status, vm_name)
+            region = get_region_from_vm_name(vm_name)
+            await self.db.update_job(job_id, status, vm_name, region)
             logger.info(f"Updated job id: {job_id} with status: {status} and VM name: {vm_name}")
 
         await self.pubsub.listen_for_heartbeats('pipeline-zen-jobs-heartbeats-scheduler',
@@ -109,24 +111,46 @@ class Scheduler:
             self.cluster_status = await self.cluster_orchestrator.update_status()
             logger.info(f"Updated cluster status: {self.cluster_status}")
             # Get information needed for scaling
-            pending_jobs = await self._get_pending_jobs_by_cluster()
+            pending_job_counts = await self._get_pending_jobs_by_cluster()
+            running_job_counts = await self._get_running_jobs_by_cluster_and_region()
             # Scale clusters
-            await self.cluster_orchestrator.scale_clusters(pending_jobs)
+            await self.cluster_orchestrator.scale_clusters(pending_job_counts, running_job_counts)
             await asyncio.sleep(10)
 
     async def _get_pending_jobs_by_cluster(self) -> Dict[str, int]:
         """
         Get the count of pending jobs for each cluster.
 
+        ex. {'cluster1': 2, 'cluster2': 1}
+
         Returns:
             Dict[str, int]: A dictionary mapping cluster names to pending job counts.
         """
-        pending_jobs = await self.db.get_jobs_by_status(['PENDING', 'RUNNING'])
-        pending_jobs_by_cluster = {}
+        pending_jobs = await self.db.get_jobs_by_status('PENDING')
+        map = {}
         for job in pending_jobs:
             cluster = job['cluster']
-            pending_jobs_by_cluster[cluster] = pending_jobs_by_cluster.get(cluster, 0) + 1
-        return pending_jobs_by_cluster
+            map[cluster] = map.get(cluster, 0) + 1
+        return map
+
+    async def _get_running_jobs_by_cluster_and_region(self) -> Dict[str, Dict[str, int]]:
+        """
+        Get the count of running jobs for each cluster and region.
+
+        ex. {'cluster1': {'region1': 2, 'region2': 1}, 'cluster2': {'region1': 1}}
+
+        Returns:
+            Dict[str, Dict[str, int]]: A dictionary mapping cluster names to dictionaries of
+             region to running job counts.
+        """
+        running_jobs = await self.db.get_jobs_by_status('RUNNING')
+        map = {}
+        for job in running_jobs:
+            cluster = job['cluster']
+            region = job['region']
+            map.setdefault(cluster, {}).setdefault(region, 0)
+            map[cluster][region] += 1
+        return map
 
     async def stop_job(self, job_id: str) -> bool:
         """

@@ -1,7 +1,7 @@
 import aiosqlite
 import json
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -60,7 +60,8 @@ class Database:
         logger.info(f"Added job with id: {job_id}, workflow: {workflow}, cluster: {cluster}")
         return job_id
 
-    async def update_job(self, job_id: str, status: str, vm_name: Optional[str] = None) -> None:
+    async def update_job(self, job_id: str, status: str,
+                         vm_name: Optional[str] = None, region: Optional[str] = None) -> None:
         """
         Update the status of a job in the database.
 
@@ -68,9 +69,11 @@ class Database:
             job_id (str): The ID of the job.
             status (str): The new status of the job.
             vm_name (Optional[str]): The name of the VM assigned to the job.
+            region (Optional[str]): The region of the VM assigned to the job
         """
         async with aiosqlite.connect(self.db_path) as db:
-            await db.execute('UPDATE jobs SET status = ?, vm_name = ? WHERE id = ?', (status, vm_name, job_id))
+            await db.execute('UPDATE jobs SET status = ?, vm_name = ?, region = ? WHERE id = ?',
+                             (status, vm_name, region, job_id))
             await db.commit()
         logger.info(f"Updated job id: {job_id} to status: {status}")
 
@@ -95,12 +98,13 @@ class Database:
                         'keep_alive': bool(row[3]),
                         'cluster': row[4],
                         'status': row[5],
-                        'vm_name': row[6]
+                        'vm_name': row[6],
+                        'region': row[7],
                     }
         logger.info(f"Retrieved job with id: {job_id}")
         return None
 
-    async def get_jobs_by_status(self, statuses: List[str]) -> List[Dict[str, Any]]:
+    async def get_jobs_by_status(self, statuses: Union[str, List[str]]) -> List[Dict[str, Any]]:
         """
         Retrieve all jobs with a given status.
 
@@ -126,7 +130,8 @@ class Database:
                         'keep_alive': bool(row[3]),
                         'cluster': row[4],
                         'status': row[5],
-                        'vm_name': row[6]
+                        'vm_name': row[6],
+                        'region': row[7],
                     } for row in rows
                 ]
         logger.info(f"Retrieved {len(jobs)} jobs with status: {statuses}")
