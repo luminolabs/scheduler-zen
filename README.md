@@ -27,9 +27,9 @@ The system is composed of several key components that work together to manage jo
 
 ## High Level System Design Diagram
 
-To zoom in, click on the image below, and then open the image in a new tab.
+Link to lucidchart diagram: [High Level System Design](https://lucid.app/lucidchart/effc926c-26d1-460b-af9d-fe2eabf55916/edit?viewport_loc=-1696%2C-213%2C4240%2C2302%2C0_0&invitationId=inv_10f2be83-f8dd-4e42-9c84-16cdbf2251b5)
 
-[![high-level-system-design.png](assets%2Fhigh-level-system-design.png)](assets/high-level-system-design.png)
+[![high-level-system-design.png](assets/high-level-system-design.png)](assets/high-level-system-design.png)
 
 ### Scheduler
 
