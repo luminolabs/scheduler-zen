@@ -1,5 +1,34 @@
-# This file contains utility functions that are used across the application.
 from typing import Optional
+
+# MV status constants
+INSTANCE_STATUS_RUNNING = 'RUNNING'
+
+# Job status constants
+JOB_STATUS_NEW = 'NEW'
+JOB_STATUS_PENDING = 'PENDING'
+JOB_STATUS_RUNNING = 'RUNNING'
+JOB_STATUS_STOPPING = 'STOPPING'
+JOB_STATUS_STOPPED = 'STOPPED'
+JOB_STATUS_COMPLETED = 'COMPLETED'
+JOB_STATUS_FAILED = 'FAILED'
+
+# Ordered list of job statuses
+HEARTBEAT_ORDERED_JOB_STATUSES = [JOB_STATUS_NEW, JOB_STATUS_PENDING, JOB_STATUS_RUNNING,
+                                  JOB_STATUS_STOPPING, JOB_STATUS_STOPPED,
+                                  JOB_STATUS_COMPLETED, JOB_STATUS_FAILED]
+
+
+def is_new_job_status_valid(old_status: str, new_status: str) -> bool:
+    """
+    Checks if the new job status is valid. We allow same old and new status so that we can process heartbeats.
+
+    Args:
+        old_status: old job status
+        new_status: new job status
+    Returns:
+        bool: True if the new job status is valid, False otherwise
+    """
+    return HEARTBEAT_ORDERED_JOB_STATUSES.index(new_status) >= HEARTBEAT_ORDERED_JOB_STATUSES.index(old_status)
 
 
 def get_region_from_vm_name(vm_name: Optional[str]) -> Optional[str]:

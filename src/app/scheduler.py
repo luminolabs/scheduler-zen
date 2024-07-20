@@ -3,7 +3,8 @@ import json
 import logging
 from typing import Any, Dict
 
-from app.utils import get_region_from_vm_name
+from app.utils import get_region_from_vm_name, JOB_STATUS_RUNNING, JOB_STATUS_PENDING, JOB_STATUS_STOPPING, \
+    JOB_STATUS_NEW, HEARTBEAT_ORDERED_JOB_STATUSES, is_new_job_status_valid
 from database import Database
 from pubsub_client import PubSubClient
 from cluster_orchestrator import ClusterOrchestrator
@@ -74,14 +75,14 @@ class Scheduler:
         """Schedule new jobs and update their status."""
         logger.info("Starting job scheduling")
         while self.running:
-            new_jobs = await self.db.get_jobs_by_status('NEW')
+            new_jobs = await self.db.get_jobs_by_status(JOB_STATUS_NEW)
             for job in new_jobs:
                 # Add job_id to args for the training workflow to pick up
                 job['args']['job_id'] = job['job_id']
                 # Publish start signal to Pub/Sub
                 await self.pubsub.publish_start_signal('pipeline-zen-jobs-start', job)
                 # Update job status to PENDING in the database
-                await self.db.update_job(job['job_id'], 'PENDING')
+                await self.db.update_job(job['job_id'], JOB_STATUS_PENDING)
                 logger.info(f"Scheduled job id: {job['job_id']} for cluster: {job['cluster']}")
             await asyncio.sleep(5)
 
@@ -103,13 +104,12 @@ class Scheduler:
             vm_name = data['vm_name']
             region = get_region_from_vm_name(vm_name)
 
-            # Ignore outdated heartbeats; only update if the status is newer
+            # Ignore outdated heartbeats; only update if the status is same or newer
             # because Pub/Sub messages aren't ordered.
             # This is mostly to handle the case where the Scheduler restarts or is down for a while and starts again.
             job = await self.db.get_job(job_id)
             old_status = job['status']
-            heartbeat_ordered_job_statuses = ['NEW', 'PENDING', 'RUNNING', 'STOPPED', 'COMPLETED', 'FAILED']
-            if job and heartbeat_ordered_job_statuses.index(new_status) < heartbeat_ordered_job_statuses.index(old_status):
+            if job and not is_new_job_status_valid(old_status, new_status):
                 return
 
             # Update job status and timestamp in the database
@@ -142,12 +142,12 @@ class Scheduler:
         Returns:
             Dict[str, int]: A dictionary mapping cluster names to pending job counts.
         """
-        pending_jobs = await self.db.get_jobs_by_status('PENDING')
-        map = {}
+        pending_jobs = await self.db.get_jobs_by_status(JOB_STATUS_PENDING)
+        mapping = {}
         for job in pending_jobs:
             cluster = job['cluster']
-            map[cluster] = map.get(cluster, 0) + 1
-        return map
+            mapping[cluster] = mapping.get(cluster, 0) + 1
+        return mapping
 
     async def _get_running_jobs_by_cluster_and_region(self) -> Dict[str, Dict[str, int]]:
         """
@@ -159,14 +159,14 @@ class Scheduler:
             Dict[str, Dict[str, int]]: A dictionary mapping cluster names to dictionaries of
              region to running job counts.
         """
-        running_jobs = await self.db.get_jobs_by_status('RUNNING')
-        map = {}
+        running_jobs = await self.db.get_jobs_by_status(JOB_STATUS_RUNNING)
+        mapping = {}
         for job in running_jobs:
             cluster = job['cluster']
             region = job['region']
-            map.setdefault(cluster, {}).setdefault(region, 0)
-            map[cluster][region] += 1
-        return map
+            mapping.setdefault(cluster, {}).setdefault(region, 0)
+            mapping[cluster][region] += 1
+        return mapping
 
     async def stop_job(self, job_id: str) -> bool:
         """
@@ -179,9 +179,9 @@ class Scheduler:
             bool: True if the job was stopped, False otherwise.
         """
         job = await self.db.get_job(job_id)
-        if job and job['status'] == 'RUNNING':
+        if job and job['status'] == JOB_STATUS_RUNNING:
             await self.pubsub.publish_stop_signal('pipeline-zen-jobs-stop', job_id)
-            await self.db.update_job(job_id, 'STOPPING')
+            await self.db.update_job(job_id, JOB_STATUS_STOPPING)
             logger.info(f"Stopped job id: {job_id}")
             return True
         logger.warning(f"Job id: {job_id} not running or does not exist")
@@ -194,8 +194,8 @@ class Scheduler:
         Returns:
             Dict[str, Any]: A dictionary with the scheduler status.
         """
-        running_jobs = await self.db.get_jobs_by_status('RUNNING')
-        pending_jobs = await self.db.get_jobs_by_status('PENDING')
+        running_jobs = await self.db.get_jobs_by_status(JOB_STATUS_RUNNING)
+        pending_jobs = await self.db.get_jobs_by_status(JOB_STATUS_PENDING)
         status = {
             'cluster_status': self.cluster_status,
             'running_jobs': len(running_jobs),

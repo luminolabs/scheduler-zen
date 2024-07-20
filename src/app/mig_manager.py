@@ -1,8 +1,10 @@
 import logging
 import asyncio
-from typing import List, Dict, Tuple
+from typing import List, Tuple
 from google.cloud import compute_v1
-from google.api_core import retry, retry_async
+from google.api_core import retry_async
+
+from app.utils import JOB_STATUS_RUNNING, INSTANCE_STATUS_RUNNING
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -76,7 +78,7 @@ class MigManager:
             )
             list_response = await asyncio.to_thread(self.client.list_managed_instances, list_request)
             running_vm_list = [instance.instance.split('/')[-1] for instance in list_response.managed_instances
-                               if instance.instance_status == "RUNNING"]
+                               if instance.instance_status == INSTANCE_STATUS_RUNNING]
 
             logger.info(f"MIG: {mig_name}: Got target size: {target_size}, running VMs: {len(running_vm_list)}")
             return target_size, len(running_vm_list)

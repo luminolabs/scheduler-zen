@@ -3,6 +3,8 @@ import json
 import logging
 from typing import List, Dict, Any, Optional, Union
 
+from app.utils import JOB_STATUS_NEW
+
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -53,7 +55,7 @@ class Database:
         args = json.dumps(job_data['args'])
         keep_alive = int(job_data['keep_alive'])
         cluster = job_data['cluster']
-        status = 'NEW'
+        status = JOB_STATUS_NEW
 
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute('INSERT INTO jobs (id, created_at, workflow, args, keep_alive, cluster, status) '
