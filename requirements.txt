@@ -1,0 +1,13 @@
+# API
+fastapi
+
+# DB
+pydantic
+aiosqlite
+
+# GCP
+google-cloud-pubsub
+google-cloud-compute
+
+# Other
+pyyaml
