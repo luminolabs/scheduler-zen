@@ -1,6 +1,6 @@
 from typing import Optional
 
-# MV status constants
+# VM status constants
 INSTANCE_STATUS_RUNNING = 'RUNNING'
 
 # Job status constants
