@@ -4,7 +4,7 @@ import logging
 from typing import Any, Dict
 
 from app.utils import get_region_from_vm_name, JOB_STATUS_RUNNING, JOB_STATUS_PENDING, JOB_STATUS_STOPPING, \
-    JOB_STATUS_NEW, HEARTBEAT_ORDERED_JOB_STATUSES, is_new_job_status_valid
+    JOB_STATUS_NEW, is_new_job_status_valid
 from database import Database
 from pubsub_client import PubSubClient
 from cluster_orchestrator import ClusterOrchestrator

@@ -1,1 +1,14 @@
-placeholder:
+log_level: DEBUG
+GOOGLE_APPLICATION_CREDENTIALS: .secrets/gcp_key.json
+
+# Fake services
+use_fake_mig_manager: true
+db_path: scheduler-zen-local.sqlite
+gpu_regions:
+  local:
+    - us-vasilis1
+    - gr-vasilis1
+mig_clusters:
+  local: local
+max_scale_limits:
+  local: 1

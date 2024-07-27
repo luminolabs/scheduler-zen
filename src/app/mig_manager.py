@@ -4,7 +4,7 @@ from typing import List, Tuple
 from google.cloud import compute_v1
 from google.api_core import retry_async
 
-from app.utils import JOB_STATUS_RUNNING, INSTANCE_STATUS_RUNNING
+from app.utils import INSTANCE_STATUS_RUNNING
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

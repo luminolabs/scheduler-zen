@@ -29,7 +29,7 @@ class Database:
             await db.execute('''CREATE TABLE IF NOT EXISTS jobs (
                                 id TEXT PRIMARY KEY,
                                 created_at DATETIME,
-                                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                updated_at DATETIME,
                                 workflow TEXT,
                                 args TEXT,
                                 keep_alive INTEGER,
@@ -78,7 +78,7 @@ class Database:
             region (Optional[str]): The region of the VM assigned to the job
         """
         async with aiosqlite.connect(self.db_path) as db:
-            await db.execute('UPDATE jobs SET status = ?, vm_name = ?, region = ? WHERE id = ?',
+            await db.execute('UPDATE jobs SET status = ?, vm_name = ?, region = ?, updated_at = datetime() WHERE id = ?',
                              (status, vm_name, region, job_id))
             await db.commit()
         logger.info(f"Updated job id: {job_id} to status: {status}")

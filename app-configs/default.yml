@@ -1,3 +1,7 @@
+# Logging
+log_level: INFO
+log_stdout: true
+
 # GCP
 gcp_project: neat-airport-407301
 
