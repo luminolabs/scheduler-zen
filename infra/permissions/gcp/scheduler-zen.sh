@@ -26,12 +26,12 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
   --role="projects/$PROJECT_ID/roles/scheduler_zen_mig_manager"
 
 # Pub/Sub permissions
-# Required for:
-# - pubsub_client.py: PubSubClient class (all methods)
-# - scheduler.py: Scheduler._listen_for_heartbeats() method
 gcloud projects add-iam-policy-binding $PROJECT_ID \
-    --member="serviceAccount:$SERVICE_ACCOUNT" \
-    --role="roles/pubsub.editor"
+  --member="serviceAccount:$SERVICE_ACCOUNT" \
+  --role=roles/pubsub.subscriber
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:$SERVICE_ACCOUNT" \
+  --role=roles/pubsub.publisher
 
 # Logging permissions
 # Required for:
