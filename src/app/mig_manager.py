@@ -1,14 +1,12 @@
-import logging
 import asyncio
 from typing import List, Tuple
 from google.cloud import compute_v1
 from google.api_core import retry_async
 
-from app.utils import INSTANCE_STATUS_RUNNING
+from app.utils import INSTANCE_STATUS_RUNNING, setup_logger
 
 # Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 
 class MigManager:

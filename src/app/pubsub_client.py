@@ -1,13 +1,13 @@
 import asyncio
 import json
-import logging
 from typing import Callable, Dict, Any
 
 from google.cloud import pubsub_v1
 
+from app.utils import setup_logger
+
 # Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 
 class PubSubClient:

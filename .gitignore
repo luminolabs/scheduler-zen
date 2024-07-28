@@ -2,5 +2,6 @@
 .__pylibs__
 __pycache__
 .env
+.logs
 *.sqlite
 .secrets

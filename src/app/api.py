@@ -1,4 +1,3 @@
-import logging
 import asyncio
 from contextlib import asynccontextmanager
 
@@ -7,6 +6,7 @@ from pydantic import BaseModel
 from typing import Dict, Any
 
 from app.config_manager import config
+from app.utils import setup_logger
 from scheduler import Scheduler
 from cluster_orchestrator import ClusterOrchestrator
 from database import Database
@@ -15,8 +15,7 @@ from mig_manager import MigManager
 from fake_mig_manager import FakeMigManager
 
 # Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 
 # Define the JobRequest model, that will be used to create new jobs

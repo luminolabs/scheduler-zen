@@ -1,10 +1,10 @@
-import logging
 from typing import Dict, Tuple
 import random
 
+from app.utils import setup_logger
+
 # Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 
 class FakeMigManager:

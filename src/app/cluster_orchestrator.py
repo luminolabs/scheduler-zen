@@ -1,12 +1,12 @@
 import asyncio
-import logging
 from typing import Dict, List, Tuple
 
+from app.utils import setup_logger
 from cluster_manager import ClusterManager
 from mig_manager import MigManager
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+# Set up logging
+logger = setup_logger(__name__)
 
 
 class ClusterOrchestrator:
