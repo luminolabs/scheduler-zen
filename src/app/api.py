@@ -42,8 +42,6 @@ def init_scheduler():
     else:
         logger.info("Using real MigManager for non-local environment")
         mig_manager = MigManager(config.gcp_project)
-        # Remove local cluster if not using fake mig manager
-        del cluster_config['local']
 
     # Initialize the cluster orchestrator with max scale limits
     cluster_orchestrator = ClusterOrchestrator(config.gcp_project, cluster_config, mig_manager, config.max_scale_limits)
