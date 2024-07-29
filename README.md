@@ -1,77 +1,40 @@
 # Pipeline Zen Jobs Scheduler
 
-Pipeline Zen Jobs Scheduler is a system designed to manage and scale compute resources for job processing across 
-multiple clusters and regions in Google Cloud Platform (GCP).
+Pipeline Zen Jobs Scheduler is a robust system designed to manage and scale compute resources for job processing across multiple clusters and regions in Google Cloud Platform (GCP). This system optimizes the allocation and utilization of GPU resources, significantly reducing wait times for computational jobs and ensuring efficient resource usage.
 
 ## Project Purpose
-The Pipeline Zen Jobs Scheduler is designed to optimize the allocation and utilization of GPU resources 
-across multiple cloud regions. In environments where GPU availability in a single region can be limited or 
-unpredictable, this system enables efficient sourcing of GPUs from various geographical locations. By 
-leveraging a multi-region approach, the scheduler significantly reduces wait times for GPU resources, ensuring 
-that computational jobs can start promptly. Additionally, the system implements automatic scaling of 
-Managed Instance Groups (MIGs), dynamically adjusting the number of GPU instances up or down based on workload 
-demands. This intelligent scaling mechanism optimizes resource usage and cost-efficiency, providing the right 
-amount of computational power when and where it's needed most. The Pipeline Zen Jobs Scheduler thus offers a 
-robust solution for organizations requiring flexible, responsive, and efficient management of GPU resources 
-for their computational workloads.
+
+The Pipeline Zen Jobs Scheduler addresses the challenges of GPU resource management in cloud environments where availability can be limited or unpredictable. By implementing a multi-region approach, the system:
+
+- Enables efficient sourcing of GPUs from various geographical locations
+- Reduces wait times for GPU resources, ensuring prompt job starts
+- Implements automatic scaling of Managed Instance Groups (MIGs)
+- Dynamically adjusts the number of GPU instances based on workload demands
+- Optimizes resource usage and cost-efficiency
+
+This intelligent scaling mechanism provides the right amount of computational power when and where it's needed most, offering a robust solution for organizations requiring flexible, responsive, and efficient management of GPU resources for their computational workloads.
 
 ## System Architecture
 
 The system is composed of several key components that work together to manage jobs and scale resources:
 
-1. Scheduler
-2. ClusterOrchestrator
-3. ClusterManager
-4. MigManager
-5. PubSub Client
+1. **Scheduler**: The central component that manages the overall job scheduling process, interacts with the database, coordinates with the ClusterOrchestrator, uses PubSub for messaging, and periodically monitors and updates the system state.
+
+2. **ClusterOrchestrator**: Oversees all clusters in the system, maintaining a collection of ClusterManagers, coordinating scaling operations across all clusters, and aggregating status information.
+
+3. **ClusterManager**: Responsible for a specific cluster configuration, managing operations across multiple regions, handling scaling decisions, and interacting with the MigManager.
+
+4. **MigManager**: Directly interacts with Google Cloud's Managed Instance Groups (MIGs), performing API calls to scale MIGs, get MIG information, and list VMs.
+
+5. **PubSub Client**: Facilitates asynchronous communication within the system, publishing messages about new jobs, listening for heartbeat messages, and sending stop signals to running jobs.
+
+6. **Database**: Manages job tracking and persistence using PostgreSQL.
 
 ## High Level System Design Diagram
 
-Link to lucidchart diagram: [High Level System Design](https://lucid.app/lucidchart/effc926c-26d1-460b-af9d-fe2eabf55916/edit?viewport_loc=-1696%2C-213%2C4240%2C2302%2C0_0&invitationId=inv_10f2be83-f8dd-4e42-9c84-16cdbf2251b5)
+[High Level System Design](https://lucid.app/lucidchart/effc926c-26d1-460b-af9d-fe2eabf55916/edit?viewport_loc=-1696%2C-213%2C4240%2C2302%2C0_0&invitationId=inv_10f2be83-f8dd-4e42-9c84-16cdbf2251b5)
 
-[![high-level-system-design.png](assets/high-level-system-design.png)](assets/high-level-system-design.png)
-
-### Scheduler
-
-The Scheduler is the central component of the system. It:
-
-- Manages the overall job scheduling process.
-- Interacts with the database to track job statuses.
-- Coordinates with the ClusterOrchestrator to manage cluster scaling.
-- Uses PubSub to send and receive messages about job statuses.
-- Periodically monitors and updates the system state.
-
-### ClusterOrchestrator
-
-The ClusterOrchestrator oversees all clusters in the system. It:
-
-- Maintains a collection of ClusterManagers, one for each cluster configuration.
-- Coordinates scaling operations across all clusters.
-- Aggregates status information from all clusters.
-
-### ClusterManager
-
-Each ClusterManager is responsible for a specific cluster configuration. It:
-
-- Manages operations for a cluster across multiple regions.
-- Handles scaling decisions for its cluster based on running VMs and pending jobs.
-- Interacts with the MigManager to perform actual scaling operations.
-
-### MigManager
-
-The MigManager directly interacts with Google Cloud's Managed Instance Groups (MIGs). It:
-
-- Performs API calls to GCP to scale MIGs, get MIG information, and list VMs.
-- Caches MIG information to reduce API calls.
-- Implements request rate limiting to avoid hitting API quotas.
-
-### PubSub Client
-
-The PubSub Client facilitates asynchronous communication within the system. It:
-
-- Publishes messages about new jobs to be started.
-- Listens for heartbeat messages from running jobs.
-- Sends stop signals to running jobs when needed.
+![high-level-system-design.png](assets/high-level-system-design.png)
 
 ## Key Terminology
 
@@ -115,4 +78,8 @@ This configuration allows the system to make informed decisions about resource a
 4. Scheduler → ClusterOrchestrator → ClusterManagers → MigManager → GCP (for scaling)
 5. Scheduler → PubSub → Job Stop Messages (when needed)
 
-This architecture allows for a scalable, responsive system that can handle varying workloads across multiple clusters and regions while maintaining efficient communication and resource management.
+## Getting Started
+
+For instructions on how to set up and run the Pipeline Zen Jobs Scheduler, please refer to the [RUNME.md](RUNME.md) file.
+
+For detailed usage instructions, including how to schedule jobs, monitor status, and interact with the system, please see the [USAGE.md](USAGE.md) file.
