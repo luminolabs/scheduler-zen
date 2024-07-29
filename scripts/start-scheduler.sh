@@ -19,6 +19,6 @@ export SZ_DB_PASS
 
 # Start the services using docker-compose
 echo "Starting services with docker-compose"
-docker-compose up -d
+docker compose up -d
 
 echo "Scheduler services started successfully"

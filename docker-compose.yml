@@ -17,6 +17,7 @@ services:
     command: python /project/app/api.py
     volumes:
       - .secrets:/project/.secrets
+      - .logs:/project/.logs
     ports:
       - "8000:8000"
     environment:

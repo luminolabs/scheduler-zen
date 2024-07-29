@@ -33,6 +33,14 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
   --member="serviceAccount:$SERVICE_ACCOUNT" \
   --role=roles/pubsub.publisher
 
+# Allow access to GCP secrets such as `huggingface_token`
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:$SERVICE_ACCOUNT" \
+  --role=roles/secretmanager.secretAccessor
+gcloud beta projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:$SERVICE_ACCOUNT" \
+  --role=roles/secretmanager.viewer
+
 # Logging permissions
 # Required for:
 # - All files: logging is used throughout the application
