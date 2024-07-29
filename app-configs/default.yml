@@ -5,6 +5,8 @@ log_file: ./.logs/output.log
 
 # GCP
 gcp_project: neat-airport-407301
+heartbeat_topic: pipeline-zen-jobs-heartbeats
+heartbeat_subscription: pipeline-zen-jobs-heartbeats-scheduler
 
 # Database
 # Set these in your .env file when running on a local env

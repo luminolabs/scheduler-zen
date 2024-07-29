@@ -1,6 +1,7 @@
 import asyncio
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Union
 
+from app.fake_mig_manager import FakeMigManager
 from app.utils import setup_logger
 from cluster_manager import ClusterManager
 from mig_manager import MigManager
@@ -16,14 +17,14 @@ class ClusterOrchestrator:
             self,
             project_id: str,
             cluster_configs: Dict[str, List[str]],
-            mig_manager: MigManager,
+            mig_manager: Union[MigManager, FakeMigManager],
             max_scale_limits: Dict[str, int]
     ):
         """
         Args:
             project_id (str): The Google Cloud project ID.
             cluster_configs (Dict[str, List[str]]): A dictionary mapping cluster names to lists of regions.
-            mig_manager (MigManager): The MIG manager responsible for interacting with the MIG APIs.
+            mig_manager (Union[MigManager, FakeMigManager]): The MIG manager instance responsible for scaling VMs.
             max_scale_limits (Dict[str, int]): A dictionary mapping cluster names to max scale limits.
         """
         self.project_id = project_id

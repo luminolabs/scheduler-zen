@@ -8,6 +8,9 @@ GOOGLE_APPLICATION_CREDENTIALS: .secrets/gcp_key.json
 # The fake MIG manager emulates the real MIG GCP APIs,
 # so that we don't have to run any jobs or scale any MIGs
 use_fake_mig_manager: true
+start_job_subscription: pipeline-zen-jobs-start-local
+heartbeat_topic: pipeline-zen-jobs-heartbeats-local
+heartbeat_subscription: pipeline-zen-jobs-heartbeats-local-scheduler
 gpu_regions:
   local:
     - us-vasilis1
