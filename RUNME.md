@@ -88,9 +88,9 @@ To set up the project on a GCP VM, follow these steps:
    SZ_ENV=dev
    ```
 8. Run the following script to start the services:
-    ```
-    ./scripts/start-scheduler.sh
-    ```
+   ```
+   ./scripts/start-scheduler.sh
+   ```
 
 This script will fetch the database configuration from Google Secret Manager, 
 set the necessary environment variables, and start the api and db services using Docker Compose.
