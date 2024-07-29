@@ -1,4 +1,8 @@
 #!/bin/bash
+
+# This script is used to start the scheduler on dev and production environments, don't use locally
+
+# Exit on errors
 set -e
 
 # Set variables
