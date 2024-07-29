@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:13
+    environment:
+      POSTGRES_DB: ${SZ_DB_NAME}
+      POSTGRES_USER: ${SZ_DB_USER}
+      POSTGRES_PASSWORD: ${SZ_DB_PASS}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  api:
+    build: .
+    command: python /project/app/api.py
+    volumes:
+      - .secrets:/project/.secrets
+    ports:
+      - "8000:8000"
+    environment:
+      - SZ_ENV=${SZ_ENV}
+      - SZ_DB_NAME=${SZ_DB_NAME}
+      - SZ_DB_USER=${SZ_DB_USER}
+      - SZ_DB_PASS=${SZ_DB_PASS}
+      - SZ_DB_HOST=db
+      - SZ_DB_PORT=5432
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:

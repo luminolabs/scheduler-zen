@@ -7,7 +7,13 @@ log_file: ./.logs/output.log
 gcp_project: neat-airport-407301
 
 # Database
-db_path: scheduler-zen.sqlite
+# Set these in your .env file when running on a local env
+# On non-local envs, we store these in a GCP secret
+db_name:
+db_user:
+db_pass:
+db_host:
+db_port:
 
 # Fake services
 use_fake_mig_manager: false

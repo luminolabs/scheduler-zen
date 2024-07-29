@@ -29,7 +29,7 @@ class JobRequest(BaseModel):
 
 def init_scheduler():
     """Set up components needed for and initialize the scheduler."""
-    db = Database(config.db_path)
+    db = Database(config.database_url)
     pubsub = PubSubClient(config.gcp_project)
 
     # Initialize the cluster orchestrator
@@ -52,12 +52,17 @@ scheduler = init_scheduler()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Load the ML model
+    # Application startup
+    logger.info("Connecting to the database")
+    await scheduler.db.connect()
     logger.info("Starting scheduler")
     asyncio.create_task(scheduler.start())
     yield
+    # Application shutdown
     logger.info("Stopping scheduler")
     await scheduler.stop()
+    logger.info("Disconnecting from the database")
+    await scheduler.db.close()
 
 # Create the FastAPI application with the lifespan context manager
 app = FastAPI(lifespan=lifespan)
