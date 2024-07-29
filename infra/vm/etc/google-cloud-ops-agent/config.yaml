@@ -1,0 +1,11 @@
+logging:
+  receivers:
+    scheduler_zen_logs:
+      type: files
+      include_paths:
+        - /scheduler-zen/.logs/*
+  service:
+    pipelines:
+      scheduler_zen:
+        receivers:
+          - scheduler_zen_logs

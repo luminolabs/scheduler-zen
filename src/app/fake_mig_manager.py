@@ -1,9 +1,10 @@
-import logging
-from typing import List, Dict
+from typing import Dict, Tuple
+import random
+
+from app.utils import setup_logger
 
 # Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 
 class FakeMigManager:
@@ -17,57 +18,50 @@ class FakeMigManager:
             project_id (str): The Google Cloud project ID.
         """
         self.project_id = project_id
-        self.migs: Dict[str, Dict[str, List[str]]] = {}  # region -> mig_name -> list of VM names
+        self.migs: Dict[str, Dict[str, Dict[str, int]]] = {}  # region -> mig_name -> {'target_size': int, 'running_vms': int}
         logger.info(f"FakeMigManager initialized with project_id: {project_id}")
 
-    async def list_vms_in_mig(self, region: str, mig_name: str) -> List[str]:
-        """
-        List the VMs in a specified MIG.
-
-        Args:
-            region (str): The region of the MIG.
-            mig_name (str): The name of the MIG.
-
-        Returns:
-            List[str]: A list of VM names.
-        """
-        logger.info(f"Listing VMs in MIG: {mig_name}, region: {region}")
-        return self.migs.get(region, {}).get(mig_name, [])
-
-    async def scale_mig(self, region: str, mig_name: str, new_size: int) -> None:
+    async def scale_mig(self, region: str, mig_name: str, target_size: int) -> None:
         """
         Scale a specified MIG to a new size.
 
         Args:
             region (str): The region of the MIG.
             mig_name (str): The name of the MIG.
-            new_size (int): The new size of the MIG.
+            target_size (int): The new target size of the MIG.
         """
-        logger.info(f"Scaling MIG: {mig_name}, region: {region} to new size: {new_size}")
         if region not in self.migs:
             self.migs[region] = {}
         if mig_name not in self.migs[region]:
-            self.migs[region][mig_name] = []
+            self.migs[region][mig_name] = {'target_size': 0, 'running_vms': 0}
 
-        current_size = len(self.migs[region][mig_name])
-        if new_size > current_size:
-            # Add VMs
-            for i in range(current_size, new_size):
-                self.migs[region][mig_name].append(f"{mig_name}-vm-{i}")
-        elif new_size < current_size:
-            # Remove VMs
-            self.migs[region][mig_name] = self.migs[region][mig_name][:new_size]
+        self.migs[region][mig_name]['target_size'] = target_size
+        self.migs[region][mig_name]['running_vms'] = max(0, min(target_size, self.migs[region][mig_name]['running_vms'] + random.randint(-2, 2)))
 
-    async def delete_vm(self, region: str, mig_name: str, instance_name: str) -> None:
+        logger.info(f"Scaled MIG: {mig_name}, region: {region} to new target size: {target_size}. "
+                    f"Current running VMs: {self.migs[region][mig_name]['running_vms']}")
+
+    async def get_target_and_running_vm_counts(self, region: str, mig_name: str) -> Tuple[int, int]:
         """
-        Delete a specific VM from a MIG.
+        Get the target size and number of running VMs for a specified MIG.
 
         Args:
             region (str): The region of the MIG.
             mig_name (str): The name of the MIG.
-            instance_name (str): The name of the instance to delete.
+
+        Returns:
+            Tuple[int, int]: The target size and number of running VMs.
         """
-        logger.info(f"Deleting VM: {instance_name} from MIG: {mig_name}, region: {region}")
-        if region in self.migs and mig_name in self.migs[region]:
-            if instance_name in self.migs[region][mig_name]:
-                self.migs[region][mig_name].remove(instance_name)
+        if region not in self.migs or mig_name not in self.migs[region]:
+            # If the MIG doesn't exist, create it with random values
+            if region not in self.migs:
+                self.migs[region] = {}
+            self.migs[region][mig_name] = {
+                'target_size': 0,
+                'running_vms': 0
+            }
+
+        mig_info = self.migs[region][mig_name]
+        logger.info(f"Getting info for MIG: {mig_name}, region: {region}. "
+                    f"Target size: {mig_info['target_size']}, Running VMs: {mig_info['running_vms']}")
+        return mig_info['target_size'], mig_info['running_vms']

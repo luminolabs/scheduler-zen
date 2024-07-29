@@ -1,20 +1,15 @@
 import asyncio
 import json
-import logging
 from typing import Any, Dict
 
 from app.utils import get_region_from_vm_name, JOB_STATUS_RUNNING, JOB_STATUS_PENDING, JOB_STATUS_STOPPING, \
-    JOB_STATUS_NEW, HEARTBEAT_ORDERED_JOB_STATUSES, is_new_job_status_valid
+    JOB_STATUS_NEW, is_new_job_status_valid, setup_logger
 from database import Database
 from pubsub_client import PubSubClient
 from cluster_orchestrator import ClusterOrchestrator
 
 # Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 
 class Scheduler:

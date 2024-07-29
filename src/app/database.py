@@ -1,13 +1,11 @@
 import aiosqlite
 import json
-import logging
 from typing import List, Dict, Any, Optional, Union
 
-from app.utils import JOB_STATUS_NEW
+from app.utils import JOB_STATUS_NEW, setup_logger
 
 # Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 
 class Database:
@@ -29,7 +27,7 @@ class Database:
             await db.execute('''CREATE TABLE IF NOT EXISTS jobs (
                                 id TEXT PRIMARY KEY,
                                 created_at DATETIME,
-                                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                updated_at DATETIME,
                                 workflow TEXT,
                                 args TEXT,
                                 keep_alive INTEGER,
@@ -78,7 +76,7 @@ class Database:
             region (Optional[str]): The region of the VM assigned to the job
         """
         async with aiosqlite.connect(self.db_path) as db:
-            await db.execute('UPDATE jobs SET status = ?, vm_name = ?, region = ? WHERE id = ?',
+            await db.execute('UPDATE jobs SET status = ?, vm_name = ?, region = ?, updated_at = datetime() WHERE id = ?',
                              (status, vm_name, region, job_id))
             await db.commit()
         logger.info(f"Updated job id: {job_id} to status: {status}")

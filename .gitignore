@@ -1,4 +1,7 @@
 .idea
+.__pylibs__
 __pycache__
 .env
+.logs
 *.sqlite
+.secrets

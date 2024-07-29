@@ -1,3 +1,8 @@
+# Logging
+log_level: INFO
+log_stdout: true
+log_file: ./.logs/output.log
+
 # GCP
 gcp_project: neat-airport-407301
 
@@ -9,9 +14,6 @@ use_fake_mig_manager: false
 
 # Available GPU types and their supported regions
 gpu_regions:
-  local:
-    - us-vasilis1
-    - gr-vasilis1
   v100:
     - us-central1
   a100-40gb:
@@ -27,7 +29,6 @@ gpu_regions:
 
 # Available MIG clusters and their GPU types
 mig_clusters:
-  local: local
   1xv100: v100
   1xa100-40gb: a100-40gb
   2xa100-40gb: a100-40gb
@@ -37,7 +38,6 @@ mig_clusters:
 
 # Max scale limits for each MIG cluster
 max_scale_limits:
-  local: 1
   1xv100: 32
   1xa100-40gb: 16
   2xa100-40gb: 8
