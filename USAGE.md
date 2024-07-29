@@ -110,4 +110,75 @@ Once connected to the database, you can run SQL queries to interact with the job
 
 Remember to end your SQL queries with a semicolon (;).
 
-For more detailed information about the API endpoints and database schema, please refer to the project documentation.
+## Monitoring Jobs
+
+### Observing MIG Statuses
+
+After scheduling a job, you can monitor the Managed Instance Group (MIG) statuses on the GCP console:
+
+1. Visit the [Instance Groups page](https://console.cloud.google.com/compute/instanceGroups/list?orgonly=true&project=neat-airport-407301&supportedpurview=organizationId,folder,project&rapt=AEjHL4NUVCalN7qo2SUhehSDZEQx1Gl2QtKDw3Gutn_hI-VoGjojng75_mpQj3gyHoPF5Rj1B0xn6Wg09QsM0Rtf1fs1KZK1Qmd8zuYtQu7iNCXCgnbaT58).
+2. Use the filter functionality to show only the relevant cluster, e.g., `4xa100-40gb`.
+
+This will allow you to see the current state and any scaling activities of the MIGs associated with your job.
+
+### Viewing Job Logs
+
+Once a job moves to the `RUNNING` status, you can view its logs in the GCP console:
+
+1. First, query the `jobs` table in the database to get the `vm_name` for your job.
+2. Visit the [Logs Explorer page](https://console.cloud.google.com/logs/query;query=resource.type%3D%22gce_instance%22%0A%22my-vm-name%22;cursorTimestamp=2024-07-29T00:35:48.915042250Z;duration=PT45M?project=neat-airport-407301&rapt=AEjHL4N0pNnZDgQMawNExGZ6NGqjyjXC8_C5X18V3-Mu-WOEkr4O1MexLNso4fjrMD7ImQV2-Ldyt3u4eYo5nK9Ud3RLkszcispRh9pRrQhE5CTZXcCjMuo).
+3. Replace `my-vm-name` in the search bar with the actual VM name from your job.
+
+This will show you the logs from the VM running your job, which can be helpful for monitoring progress or debugging issues.
+
+### Accessing Training Metrics
+
+All training metrics are stored in BigQuery. You can query these metrics using the BigQuery console:
+
+1. Visit the [BigQuery console](https://console.cloud.google.com/bigquery?project=neat-airport-407301).
+2. Use a query like the following to see all metrics for a given job_id:
+
+```sql
+SELECT *
+FROM `neat-airport-407301.pipeline_zen.torchtunewrapper` AS t
+WHERE t.job_id = 'your-job-id'
+ORDER BY create_ts DESC;
+```
+
+Replace `'your-job-id'` with the actual ID of the job you want to investigate.
+
+This query will return all stored metrics for the specified job, ordered by creation timestamp in descending order.
+
+## Accessing Job Results
+
+Once a job is completed or has failed, any logs and model weights are automatically uploaded to a GCP bucket. The specific bucket used depends on the region where the job was executed.
+
+To find the correct bucket for your job results:
+
+1. Query the `jobs` table in the database to get the `region` for your job.
+2. Use the region to determine the correct GCP bucket:
+
+   - Asia regions: `lum-pipeline-zen-jobs-asia`
+   - Europe regions: `lum-pipeline-zen-jobs-europe`
+   - US regions: `lum-pipeline-zen-jobs-us`
+   - Middle East (me-west1): `lum-pipeline-zen-jobs-me-west1`
+
+For example, if your job's region is `us-central1`, you would look for your results in the `lum-pipeline-zen-jobs-us` bucket.
+
+To access the bucket:
+
+1. Go to the [Google Cloud Storage browser](https://console.cloud.google.com/storage/browser).
+2. Select the appropriate bucket based on your job's region.
+3. Navigate through the bucket to find your job's results. They are typically organized by job ID.
+
+Remember to download any important results you need, as bucket contents may be subject to retention policies.
+
+## Best Practices
+
+- Always use unique job IDs when scheduling new jobs.
+- Monitor the status of your jobs regularly using both the database queries and the GCP console tools.
+- Check the MIG statuses to ensure that resources are being allocated and deallocated as expected.
+- Review job logs promptly to catch and address any issues.
+- Analyze training metrics in BigQuery to track the progress and performance of your jobs.
+
+For more detailed information about the API endpoints, database schema, or GCP tools, please refer to the project documentation and the GCP documentation.
