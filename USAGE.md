@@ -8,17 +8,13 @@ Before interacting with the API or database on the VM, you need to set up SSH tu
 
 1. For the API (assuming it runs on port 8000 on the VM):
    ```
-   ssh -L 8000:localhost:8000 user@vm-ip-address
+   gcloud compute ssh --zone "us-central1-a" "scheduler-zen" -- -L 8000:localhost:8000
    ```
 
 2. For the database (assuming PostgreSQL runs on port 5432 on the VM):
    ```
-   ssh -L 5432:localhost:5432 user@vm-ip-address
+   gcloud compute ssh --zone "us-central1-a" "scheduler-zen" -- -L 5432:localhost:5432
    ```
-
-Replace `user` with your VM username and `vm-ip-address` with the IP address or hostname of your VM.
-
-Find the `vm-ip-address` [here](https://console.cloud.google.com/compute/instances?project=neat-airport-407301)
 
 Keep these terminal windows open to maintain the SSH tunnels.
 
