@@ -60,7 +60,7 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(scheduler.start())
     if config.use_fake_mig_manager:
         logger.info("Starting fake mig manager")
-        scheduler.cluster_orchestrator.mig_manager.start()
+        asyncio.create_task(scheduler.cluster_orchestrator.mig_manager.start())
     yield
     # Application shutdown
     logger.info("Stopping scheduler")

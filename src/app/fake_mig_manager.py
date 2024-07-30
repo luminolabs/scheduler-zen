@@ -43,23 +43,19 @@ class FakeMigManager:
         self.main_task: Optional[asyncio.Task] = None
         self.gpu_regions = config.gpu_regions  # Store the GPU regions from config
 
-    def start(self) -> None:
-        """Start the FakeMigManager in a non-blocking manner."""
-        if self.main_task is None or self.main_task.done():
-            self.running = True
-            self.main_task = asyncio.create_task(self._run())
-            print("FakeMigManager started")
-        else:
-            print("FakeMigManager is already running")
+    async def start(self) -> None:
+        self.running = True
+        print("FakeMigManager started")
+        await asyncio.gather(
+            self.listen_for_new_jobs(),
+            self.process_jobs(),
+            self.process_messages()
+        )
 
     async def stop(self) -> None:
         """Stop the FakeMigManager and wait for it to finish."""
-        if self.main_task and not self.main_task.done():
-            self.running = False
-            await self.main_task
-            print("FakeMigManager stopped")
-        else:
-            print("FakeMigManager is not running")
+        self.running = False
+        print("FakeMigManager stopped")
 
     async def _run(self) -> None:
         """Main loop of the FakeMigManager."""
