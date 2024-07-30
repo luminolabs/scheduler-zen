@@ -220,4 +220,3 @@ async def test_get_status(scheduler):
     }
     scheduler.db.get_jobs_by_status.assert_any_call(JOB_STATUS_RUNNING)
     scheduler.db.get_jobs_by_status.assert_any_call(JOB_STATUS_PENDING)
-
