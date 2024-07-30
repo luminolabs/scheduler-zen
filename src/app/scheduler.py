@@ -41,6 +41,7 @@ class Scheduler:
         self.running = True
         await self.db.create_tables()  # Ensure tables are created
         logger.info("Scheduler started")
+        asyncio.create_task(self.pubsub.start())
         await asyncio.gather(
             self._schedule_jobs(),
             self._listen_for_heartbeats(),
@@ -50,6 +51,7 @@ class Scheduler:
     async def stop(self) -> None:
         """Stop the scheduler."""
         self.running = False
+        await self.pubsub.stop()
         logger.info("Scheduler stopped")
 
     async def add_job(self, job_data: Dict[str, Any]) -> str:
@@ -103,6 +105,9 @@ class Scheduler:
             # because Pub/Sub messages aren't ordered.
             # This is mostly to handle the case where the Scheduler restarts or is down for a while and starts again.
             job = await self.db.get_job(job_id)
+            if not job:
+                logger.info(f"Ignoring heartbeat for non-existent job id: {job_id}")
+                return  # Ignore heartbeats for non-existent jobs
             old_status = job['status']
             if job and not is_new_job_status_valid(old_status, new_status):
                 return
@@ -111,8 +116,8 @@ class Scheduler:
             await self.db.update_job(job_id, new_status, vm_name, region)
             logger.info(f"Updated job id: {job_id} with status: {new_status} and VM name: {vm_name}")
 
-        await self.pubsub.listen_for_heartbeats('pipeline-zen-jobs-heartbeats-scheduler',
-                                                heartbeat_callback)
+        self.pubsub.heartbeat_callback = heartbeat_callback
+        await self.pubsub.listen_for_heartbeats('pipeline-zen-jobs-heartbeats-scheduler')
 
     async def _monitor_and_scale_clusters(self) -> None:
         """Monitor cluster status and scale as necessary."""

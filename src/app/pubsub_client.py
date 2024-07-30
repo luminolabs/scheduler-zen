@@ -13,6 +13,9 @@ logger = setup_logger(__name__)
 class PubSubClient:
     """Manages Google Cloud Pub/Sub operations."""
 
+    # Heartbeat callback function
+    heartbeat_callback: Callable = None
+
     def __init__(self, project_id: str):
         """
         Initialize the PubSubClient with a project ID.
@@ -23,7 +26,22 @@ class PubSubClient:
         self.project_id = project_id
         self.publisher = pubsub_v1.PublisherClient()
         self.subscriber = pubsub_v1.SubscriberClient()
+        self.heartbeats_queue = asyncio.Queue()
+        self.running = False
         logger.info(f"PubSubClient initialized with project_id: {project_id}")
+
+    async def start(self) -> None:
+        """Start PubSub processes."""
+        self.running = True
+        logger.info("PubSub processes started")
+        await asyncio.gather(
+            self._process_heartbeats(),
+        )
+
+    async def stop(self) -> None:
+        """Stop PubSub processes."""
+        self.running = False
+        logger.info("PubSub processes stopped")
 
     async def publish_start_signal(self, topic_name: str, job_data: Dict[str, Any]) -> None:
         """
@@ -53,23 +71,27 @@ class PubSubClient:
         future = self.publisher.publish(topic_path, data)
         await asyncio.to_thread(future.result)
 
-    async def listen_for_heartbeats(self, subscription_name: str, callback: Callable) -> None:
+    async def _process_heartbeats(self):
+        """Process incoming heartbeats using the heartbeat callback function."""
+        while True:
+            if not self.running:
+                break
+            message = await self.heartbeats_queue.get()
+            await self.heartbeat_callback(message.data)
+            message.ack()
+
+    async def listen_for_heartbeats(self, subscription_name: str) -> None:
         """
         Listen for heartbeats on a specified Pub/Sub subscription.
 
         Args:
             subscription_name (str): The Pub/Sub subscription.
-            callback (Callable[[str], None]): The callback function to handle incoming messages.
         """
         logger.info(f"Listening for heartbeats on subscription: {subscription_name}")
         subscription_path = self.subscriber.subscription_path(self.project_id, subscription_name)
 
-        async def process_message(message):
-            await callback(message.data)
-            message.ack()
-
         def callback_wrapper(message):
-            asyncio.run(process_message(message))
+            asyncio.run(self.heartbeats_queue.put(message))
 
         streaming_pull_future = self.subscriber.subscribe(subscription_path, callback=callback_wrapper)
         with self.subscriber:

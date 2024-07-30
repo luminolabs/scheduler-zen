@@ -1,4 +1,4 @@
-import aiosqlite
+import asyncpg
 import json
 from typing import List, Dict, Any, Optional, Union
 
@@ -9,33 +9,46 @@ logger = setup_logger(__name__)
 
 
 class Database:
-    """Manages the SQLite database for job tracking."""
+    """Manages the PostgreSQL database for job tracking."""
 
-    def __init__(self, db_path: str):
+    def __init__(self, connection_string: str):
         """
-        Initialize the Database with the path to the SQLite file.
+        Initialize the Database with a PostgreSQL connection string.
 
         Args:
-            db_path (str): The path to the SQLite database file.
+            connection_string (str): The PostgreSQL connection string.
         """
-        self.db_path = db_path
-        logger.info(f"Database initialized with db_path: {db_path}")
+        self.connection_string = connection_string
+        self.pool = None
+        logger.info(f"Database initialized with connection string: {connection_string}")
+
+    async def connect(self):
+        """Create a connection pool to the PostgreSQL database."""
+        self.pool = await asyncpg.create_pool(self.connection_string)
+        logger.info("Database connection pool created")
+
+    async def close(self):
+        """Close the database connection pool."""
+        await self.pool.close()
+        logger.info("Database connection pool closed")
 
     async def create_tables(self) -> None:
         """Create the necessary tables for job tracking."""
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute('''CREATE TABLE IF NOT EXISTS jobs (
-                                id TEXT PRIMARY KEY,
-                                created_at DATETIME,
-                                updated_at DATETIME,
-                                workflow TEXT,
-                                args TEXT,
-                                keep_alive INTEGER,
-                                cluster TEXT,
-                                status TEXT,
-                                vm_name TEXT,
-                                region TEXT)''')
-            await db.commit()
+        async with self.pool.acquire() as conn:
+            await conn.execute('''
+                CREATE TABLE IF NOT EXISTS jobs (
+                    id TEXT PRIMARY KEY,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    workflow TEXT,
+                    args JSONB,
+                    keep_alive BOOLEAN,
+                    cluster TEXT,
+                    status TEXT,
+                    vm_name TEXT,
+                    region TEXT
+                )
+            ''')
         logger.info("Database tables created")
 
     async def add_job(self, job_data: Dict[str, Any]) -> str:
@@ -51,15 +64,15 @@ class Database:
         job_id = job_data.get('job_id') or self._generate_job_id()
         workflow = job_data['workflow']
         args = json.dumps(job_data['args'])
-        keep_alive = int(job_data['keep_alive'])
+        keep_alive = job_data['keep_alive']
         cluster = job_data['cluster']
         status = JOB_STATUS_NEW
 
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute('INSERT INTO jobs (id, created_at, workflow, args, keep_alive, cluster, status) '
-                             'VALUES (?, datetime(), ?, ?, ?, ?, ?)',
-                             (job_id, workflow, args, keep_alive, cluster, status))
-            await db.commit()
+        async with self.pool.acquire() as conn:
+            await conn.execute('''
+                INSERT INTO jobs (id, workflow, args, keep_alive, cluster, status)
+                VALUES ($1, $2, $3, $4, $5, $6)
+            ''', job_id, workflow, args, keep_alive, cluster, status)
 
         logger.info(f"Added job with id: {job_id}, workflow: {workflow}, cluster: {cluster}")
         return job_id
@@ -75,10 +88,12 @@ class Database:
             vm_name (Optional[str]): The name of the VM assigned to the job.
             region (Optional[str]): The region of the VM assigned to the job
         """
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute('UPDATE jobs SET status = ?, vm_name = ?, region = ?, updated_at = datetime() WHERE id = ?',
-                             (status, vm_name, region, job_id))
-            await db.commit()
+        async with self.pool.acquire() as conn:
+            await conn.execute('''
+                UPDATE jobs
+                SET status = $1, vm_name = $2, region = $3, updated_at = CURRENT_TIMESTAMP
+                WHERE id = $4
+            ''', status, vm_name, region, job_id)
         logger.info(f"Updated job id: {job_id} to status: {status}")
 
     async def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
@@ -91,31 +106,27 @@ class Database:
         Returns:
             Optional[Dict[str, Any]]: A dictionary with job details if found, None otherwise.
         """
-        async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute('SELECT * FROM jobs WHERE id = ?', (job_id,)) as cursor:
-                row = await cursor.fetchone()
-                logger.info(f"Retrieved job with id: {job_id}")
-                return self._row_to_dict(row)
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow('SELECT * FROM jobs WHERE id = $1', job_id)
+            logger.info(f"Retrieved job with id: {job_id}")
+            return self._row_to_dict(row)
 
     async def get_jobs_by_status(self, statuses: Union[str, List[str]]) -> List[Dict[str, Any]]:
         """
-        Retrieve all jobs with a given status.
+        Retrieve all jobs with a given status or statuses.
 
         Args:
-            statuses (str): The status to filter jobs by.
+            statuses (Union[str, List[str]]): The status(es) to filter jobs by.
 
         Returns:
             List[Dict[str, Any]]: A list of dictionaries with job details.
         """
-        # Ensure status is a list
         if not isinstance(statuses, list):
             statuses = [statuses]
-        # Generate the required number of placeholders
-        placeholders = ','.join('?' for _ in statuses)
-        async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute(f'SELECT * FROM jobs WHERE status IN ({placeholders})', [*statuses]) as cursor:
-                rows = await cursor.fetchall()
-                jobs = [self._row_to_dict(row) for row in rows]
+
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch('SELECT * FROM jobs WHERE status = ANY($1)', statuses)
+            jobs = [self._row_to_dict(row) for row in rows]
         logger.info(f"Retrieved {len(jobs)} jobs with status: {statuses}")
         return jobs
 
@@ -127,12 +138,11 @@ class Database:
         Returns:
             str: A unique job ID.
         """
-        # This is a simple implementation. You might want to use a more robust method in production.
         import uuid
         return str(uuid.uuid4())
 
     @staticmethod
-    def _row_to_dict(row: Optional[List]) -> Optional[Dict[str, Any]]:
+    def _row_to_dict(row: Optional[asyncpg.Record]) -> Optional[Dict[str, Any]]:
         """
         Convert a database row to a dictionary.
 
@@ -141,15 +151,17 @@ class Database:
         Returns:
             dict: A dictionary representation of the row.
         """
+        if row is None:
+            return None
         return {
-            'job_id': row[0],
-            'created_at': row[1],
-            'updated_at': row[2],
-            'workflow': row[3],
-            'args': json.loads(row[4]),
-            'keep_alive': bool(row[5]),
-            'cluster': row[6],
-            'status': row[7],
-            'vm_name': row[8],
-            'region': row[9],
-        } if row else None
+            'job_id': row['id'],
+            'created_at': row['created_at'].isoformat(),
+            'updated_at': row['updated_at'].isoformat(),
+            'workflow': row['workflow'],
+            'args': json.loads(row['args']),
+            'keep_alive': row['keep_alive'],
+            'cluster': row['cluster'],
+            'status': row['status'],
+            'vm_name': row['vm_name'],
+            'region': row['region'],
+        }

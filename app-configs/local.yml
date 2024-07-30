@@ -1,14 +1,18 @@
+# Logging
 log_level: DEBUG
+
+# GCP service account creds key
 GOOGLE_APPLICATION_CREDENTIALS: .secrets/gcp_key.json
 
 # Fake services
-#use_fake_mig_manager: true
-#db_path: scheduler-zen-local.sqlite
-#gpu_regions:
-#  local:
-#    - us-vasilis1
-#    - gr-vasilis1
-#mig_clusters:
-#  local: local
-#max_scale_limits:
-#  local: 1
+# The fake MIG manager emulates the real MIG GCP APIs,
+# so that we don't have to run any jobs or scale any MIGs
+use_fake_mig_manager: true
+gpu_regions:
+  local:
+    - us-vasilis1
+    - gr-vasilis1
+mig_clusters:
+  local: local
+max_scale_limits:
+  local: 1

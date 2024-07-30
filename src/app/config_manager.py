@@ -29,6 +29,8 @@ class ConfigManager:
             self.env_name = 'local'
         # Load configuration
         self.loaded_config = self.load()
+        # Construct the database url
+        self.database_url = f"postgresql://{self.db_user}:{self.db_pass}@{self.db_host}:{self.db_port}/{self.db_name}"
 
     def load(self) -> dict:
         """

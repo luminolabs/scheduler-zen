@@ -3,7 +3,7 @@ fastapi
 
 # DB
 pydantic
-aiosqlite
+asyncpg
 
 # GCP
 google-cloud-pubsub
