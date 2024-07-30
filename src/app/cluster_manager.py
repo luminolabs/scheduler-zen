@@ -2,7 +2,7 @@ import asyncio
 from typing import Dict, List, Tuple
 
 from app.utils import setup_logger
-from mig_manager import MigManager
+from app.mig_manager import MigManager
 
 # Set up logging
 logger = setup_logger(__name__)
