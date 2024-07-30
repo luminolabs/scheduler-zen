@@ -57,38 +57,15 @@ class FakeMigManager:
         self.running = False
         print("FakeMigManager stopped")
 
-    async def _run(self) -> None:
-        """Main loop of the FakeMigManager."""
-        try:
-            await asyncio.gather(
-                self.listen_for_new_jobs(),
-                self.process_jobs(),
-                self.process_messages()
-            )
-        except Exception as e:
-            print(f"Error in FakeMigManager main loop: {e}")
-        finally:
-            self.running = False
-
     async def listen_for_new_jobs(self) -> None:
         """Listen for new job messages on the Pub/Sub subscription."""
         def callback(message: pubsub_v1.subscriber.message.Message) -> None:
             self.message_queue.put(message)
 
-        streaming_pull_future = self.subscriber.subscribe(
+        self.subscriber.subscribe(
             self.start_job_subscription_path, callback=callback
         )
         print(f"Listening for messages on {self.start_job_subscription_path}")
-
-        with self.subscriber:
-            try:
-                while self.running:
-                    await asyncio.sleep(1)  # Allow for stopping the loop
-            except Exception as e:
-                print(f"Error in listen_for_new_jobs: {e}")
-            finally:
-                streaming_pull_future.cancel()
-                print(f"Stopped listening for messages on {self.start_job_subscription_path}")
 
     async def process_messages(self) -> None:
         """Process messages from the message queue."""
@@ -106,20 +83,16 @@ class FakeMigManager:
         Args:
             message (pubsub_v1.subscriber.message.Message): The Pub/Sub message containing job data.
         """
-        try:
-            data = json.loads(message.data.decode('utf-8'))
-            await self.job_queue.put(data)
-            print(f"Received new job: {data['job_id']}")
-            message.ack()
-        except Exception as e:
-            print(f"Error processing message: {e}")
-            message.nack()
+        data = json.loads(message.data.decode('utf-8'))
+        await self.job_queue.put(data)
+        print(f"Received new job: {data['job_id']}")
+        message.ack()
 
     async def process_jobs(self) -> None:
         """Process jobs from the job queue."""
         while self.running:
             try:
-                job = await asyncio.wait_for(self.job_queue.get(), timeout=1.0)
+                job = await asyncio.wait_for(self.job_queue.get(), timeout=1)
                 await self.assign_job_to_vm(job)
             except asyncio.TimeoutError:
                 continue
@@ -140,12 +113,9 @@ class FakeMigManager:
             print(f"No available VMs for job {job_id}. Scaling up MIG.")
             await self.scale_mig(region, mig_name, 1)
 
-        if self.migs[region][mig_name]:
-            vm_name = self.migs[region][mig_name][0]
-            task = asyncio.create_task(self.simulate_vm(job_id, vm_name, region, mig_name))
-            self.active_vms[vm_name] = task
-        else:
-            print(f"Failed to assign job {job_id} to a VM.")
+        vm_name = self.migs[region][mig_name][0]
+        task = asyncio.create_task(self.simulate_vm(job_id, vm_name, region, mig_name))
+        self.active_vms[vm_name] = task
 
     def get_region_for_cluster(self, cluster: str) -> str:
         """
@@ -157,12 +127,8 @@ class FakeMigManager:
         Returns:
             str: A randomly selected region for the cluster.
         """
-        if cluster in self.gpu_regions:
-            available_regions = self.gpu_regions[cluster]
-            return random.choice(available_regions)
-        else:
-            print(f"Warning: No regions found for cluster {cluster}. Using default region.")
-            return "default-region"
+        available_regions = self.gpu_regions[cluster]
+        return random.choice(available_regions)
 
     async def scale_mig(self, region: str, mig_name: str, target_size: int) -> None:
         """
@@ -224,22 +190,19 @@ class FakeMigManager:
             region (str): The region of the VM.
             mig_name (str): The name of the MIG the VM belongs to.
         """
-        try:
-            # Simulate VM startup time
-            await asyncio.sleep(random.uniform(5, 15))
+        # Simulate VM startup time
+        await asyncio.sleep(random.uniform(5, 15))
 
-            # Send a few RUNNING heartbeats
-            for _ in range(random.randint(3, 7)):
-                await self.send_heartbeat(job_id, vm_name, "RUNNING")
-                await asyncio.sleep(random.uniform(2, 5))
+        # Send a few RUNNING heartbeats
+        for _ in range(random.randint(3, 7)):
+            await self.send_heartbeat(job_id, vm_name, "RUNNING")
+            await asyncio.sleep(random.uniform(2, 5))
 
-            # Send a COMPLETED heartbeat
-            await self.send_heartbeat(job_id, vm_name, "COMPLETED")
+        # Send a COMPLETED heartbeat
+        await self.send_heartbeat(job_id, vm_name, "COMPLETED")
 
-            # Simulate VM deletion and MIG scale down
-            await self.delete_vm(region, mig_name, vm_name)
-        except asyncio.CancelledError:
-            print(f"VM simulation for {vm_name} was cancelled")
+        # Simulate VM deletion and MIG scale down
+        await self.delete_vm(region, mig_name, vm_name)
 
     async def send_heartbeat(self, job_id: str, vm_name: str, status: str) -> None:
         """
@@ -269,17 +232,11 @@ class FakeMigManager:
             mig_name (str): The name of the MIG.
             vm_name (str): The name of the VM to delete.
         """
-        if region in self.migs and mig_name in self.migs[region]:
-            if vm_name in self.migs[region][mig_name]:
-                self.migs[region][mig_name].remove(vm_name)
-                if vm_name in self.active_vms:
-                    del self.active_vms[vm_name]
-                print(f"Deleted VM {vm_name} from MIG {mig_name} in region {region}")
+        self.migs[region][mig_name].remove(vm_name)
+        if vm_name in self.active_vms:
+            del self.active_vms[vm_name]
+        print(f"Deleted VM {vm_name} from MIG {mig_name} in region {region}")
 
-                # Simulate MIG auto-scaling down by 1
-                new_size = len(self.migs[region][mig_name])
-                print(f"MIG {mig_name} in region {region} auto-scaled down to {new_size} instances")
-            else:
-                print(f"Warning: VM {vm_name} not found in MIG {mig_name} in region {region}")
-        else:
-            print(f"Warning: MIG {mig_name} in region {region} not found")
+        # Simulate MIG auto-scaling down by 1
+        new_size = len(self.migs[region][mig_name])
+        print(f"MIG {mig_name} in region {region} auto-scaled down to {new_size} instances")
