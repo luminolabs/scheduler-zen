@@ -1,10 +1,3 @@
-"""
-This module contains unit tests for the utility functions in the app.utils module.
-
-It uses pytest for testing and includes tests for job status validation,
-region extraction from VM names, and job status order verification.
-"""
-
 from app.utils import (
     is_new_job_status_valid,
     get_region_from_vm_name,
@@ -45,8 +38,6 @@ def test_get_region_from_vm_name():
 
     # Test edge case: None input
     assert get_region_from_vm_name(None) is None
-
-    # Additional test cases could be added here for other VM name formats or edge cases
 
 
 def test_heartbeat_ordered_job_statuses():

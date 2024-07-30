@@ -1,10 +1,3 @@
-"""
-This module contains unit tests for the ClusterOrchestrator class.
-
-It uses pytest for testing and mocks the necessary dependencies
-to isolate the ClusterOrchestrator behavior.
-"""
-
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 

@@ -1,9 +1,3 @@
-"""
-This module contains unit tests for the API endpoints of the Pipeline Zen Jobs Scheduler.
-
-It uses pytest for testing and mocks the scheduler to isolate API behavior.
-"""
-
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import AsyncMock, patch

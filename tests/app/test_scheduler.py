@@ -1,15 +1,8 @@
-"""
-This module contains unit tests for the Scheduler class.
-
-It uses pytest for testing and mocks the necessary dependencies
-to isolate the Scheduler behavior.
-"""
-
 import json
 import asyncio
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 from app.scheduler import Scheduler
 from app.database import Database

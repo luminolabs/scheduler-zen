@@ -1,10 +1,3 @@
-"""
-This module contains unit tests for the ConfigManager class.
-
-It uses pytest for testing and mocks the necessary dependencies
-to isolate the ConfigManager behavior.
-"""
-
 import os
 import pytest
 from unittest.mock import patch

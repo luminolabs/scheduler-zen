@@ -1,10 +1,3 @@
-"""
-This module contains unit tests for the ClusterManager class.
-
-It uses pytest for testing and mocks the necessary dependencies
-to isolate the ClusterManager behavior.
-"""
-
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 

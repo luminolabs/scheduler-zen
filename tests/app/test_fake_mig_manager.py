@@ -1,17 +1,9 @@
-"""
-This module contains unit tests for the FakeMigManager class.
-
-It uses pytest for testing and mocks the necessary dependencies
-to isolate the FakeMigManager behavior.
-"""
-
 from collections.abc import Coroutine
 
 import pytest
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 import json
-from google.cloud import pubsub_v1
 
 from app.fake_mig_manager import FakeMigManager
 from app.config_manager import config
