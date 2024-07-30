@@ -64,6 +64,29 @@ curl http://localhost:8000/status
 
 ## Interacting with the Database
 
+### Installing psql
+
+Install psql:
+
+```bash
+brew doctor
+brew update
+brew install libpq
+````
+
+Add the following to your `.bash_profile` or `.zshrc` or wherever you set your environment variables:
+
+```bash
+export PATH="/usr/local/opt/libpq/bin:$PATH"
+````
+
+Then, reload your shell.
+
+Consider using a PostgreSQL client like 
+[Postico](https://eggerapps.at/postico/) or [pgAdmin](https://www.pgadmin.org/) 
+for a more user-friendly interface. Or if
+you use intellij, you can use the database plugin to connect to the database.
+
 ### Connecting to the Database
 
 To connect to the PostgreSQL database, use the following command:
