@@ -35,9 +35,10 @@ def init_scheduler():
     # Initialize the cluster orchestrator
     cluster_config = {k: config.gpu_regions[v] for k, v in config.mig_clusters.items()}
 
+    # The FakeMigManager simulates VMs and MIGs for testing
     if config.use_fake_mig_manager:
         logger.info("Using FakeMigManager for local environment")
-        mig_manager = FakeMigManager(config.gcp_project)
+        mig_manager = FakeMigManager(config.gcp_project, config.heartbeat_topic, config.start_job_subscription)
     else:
         logger.info("Using real MigManager for non-local environment")
         mig_manager = MigManager(config.gcp_project)
@@ -57,12 +58,18 @@ async def lifespan(app: FastAPI):
     await scheduler.db.connect()
     logger.info("Starting scheduler")
     asyncio.create_task(scheduler.start())
+    if config.use_fake_mig_manager:
+        logger.info("Starting fake mig manager")
+        asyncio.create_task(scheduler.cluster_orchestrator.mig_manager.start())
     yield
     # Application shutdown
     logger.info("Stopping scheduler")
     await scheduler.stop()
     logger.info("Disconnecting from the database")
     await scheduler.db.close()
+    if config.use_fake_mig_manager:
+        logger.info("Stopping fake mig manager")
+        await scheduler.cluster_orchestrator.mig_manager.stop()
 
 # Create the FastAPI application with the lifespan context manager
 app = FastAPI(lifespan=lifespan)

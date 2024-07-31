@@ -2,6 +2,7 @@ import asyncio
 import json
 from typing import Any, Dict
 
+from app.config_manager import config
 from app.utils import get_region_from_vm_name, JOB_STATUS_RUNNING, JOB_STATUS_PENDING, JOB_STATUS_STOPPING, \
     JOB_STATUS_NEW, is_new_job_status_valid, setup_logger
 from database import Database
@@ -117,7 +118,7 @@ class Scheduler:
             logger.info(f"Updated job id: {job_id} with status: {new_status} and VM name: {vm_name}")
 
         self.pubsub.heartbeat_callback = heartbeat_callback
-        await self.pubsub.listen_for_heartbeats('pipeline-zen-jobs-heartbeats-scheduler')
+        await self.pubsub.listen_for_heartbeats(config.heartbeat_subscription)
 
     async def _monitor_and_scale_clusters(self) -> None:
         """Monitor cluster status and scale as necessary."""
