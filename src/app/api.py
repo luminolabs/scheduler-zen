@@ -7,12 +7,12 @@ from typing import Dict, Any
 
 from app.config_manager import config
 from app.utils import setup_logger
-from scheduler import Scheduler
-from cluster_orchestrator import ClusterOrchestrator
-from database import Database
-from pubsub_client import PubSubClient
-from mig_manager import MigManager
-from fake_mig_manager import FakeMigManager
+from app.scheduler import Scheduler
+from app.cluster_orchestrator import ClusterOrchestrator
+from app.database import Database
+from app.pubsub_client import PubSubClient
+from app.mig_manager import MigManager
+from app.fake_mig_manager import FakeMigManager
 
 # Set up logging
 logger = setup_logger(__name__)

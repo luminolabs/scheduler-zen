@@ -5,9 +5,9 @@ from typing import Any, Dict
 from app.config_manager import config
 from app.utils import get_region_from_vm_name, JOB_STATUS_RUNNING, JOB_STATUS_PENDING, JOB_STATUS_STOPPING, \
     JOB_STATUS_NEW, is_new_job_status_valid, setup_logger
-from database import Database
-from pubsub_client import PubSubClient
-from cluster_orchestrator import ClusterOrchestrator
+from app.database import Database
+from app.pubsub_client import PubSubClient
+from app.cluster_orchestrator import ClusterOrchestrator
 
 # Set up logging
 logger = setup_logger(__name__)

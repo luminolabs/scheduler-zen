@@ -3,8 +3,8 @@ from typing import Dict, List, Tuple, Union
 
 from app.fake_mig_manager import FakeMigManager
 from app.utils import setup_logger
-from cluster_manager import ClusterManager
-from mig_manager import MigManager
+from app.cluster_manager import ClusterManager
+from app.mig_manager import MigManager
 
 # Set up logging
 logger = setup_logger(__name__)
