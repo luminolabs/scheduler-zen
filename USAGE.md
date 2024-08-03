@@ -24,7 +24,7 @@ Keep these terminal windows open to maintain the SSH tunnels.
 
 To schedule a new job, use the following curl command as a template.
 
-For available clusters look at the [app-config/default.yml](app-config/default.yml) file 
+For available clusters look at the [app-config/default.yml](https://github.com/luminolabs/scheduler-zen/blob/main/app-configs/default.yml) file 
 and find the `mig_clusters` section.
 
 If you're new to this, ask a team member to verify the configuration and help you schedule your first job.
