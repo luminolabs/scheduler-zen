@@ -31,6 +31,7 @@ gpu_regions:
     - europe-west4
     - me-west1
     - us-central1
+    - us-east1
     - us-west1
     - us-west3
     - us-west4
