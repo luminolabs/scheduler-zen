@@ -22,7 +22,12 @@ Keep these terminal windows open to maintain the SSH tunnels.
 
 ### Scheduling a New Job
 
-To schedule a new job, use the following curl command as a template:
+To schedule a new job, use the following curl command as a template.
+
+For available clusters look at the [app-config/default.yml](app-config/default.yml) file 
+and find the `mig_clusters` section.
+
+If you're new to this, ask a team member to verify the configuration and help you schedule your first job.
 
 ```bash
 curl -X POST http://localhost:8000/jobs -H "Content-Type: application/json" -d '{

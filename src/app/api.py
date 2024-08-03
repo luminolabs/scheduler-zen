@@ -92,7 +92,7 @@ async def create_job(job: JobRequest):
     try:
         job_id = await scheduler.add_job(job.dict())
         logger.info(f"Added new job with ID: {job_id}")
-        return {"job_id": job_id}
+        return {"job_id": job_id, "status": "new"}
     except Exception as e:
         logger.error(f"Error adding job: {str(e)}")
         raise HTTPException(status_code=500, detail="Error adding job")
@@ -117,7 +117,7 @@ async def stop_job(job_id: str):
         logger.warning(f"Failed to stop job with ID: {job_id}")
         raise HTTPException(status_code=404, detail="Job not found or not running")
     logger.info(f"Stopped job with ID: {job_id}")
-    return {"status": "stopped"}
+    return {"status": "stopping"}
 
 
 @app.get("/status")
