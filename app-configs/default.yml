@@ -31,24 +31,53 @@ gpu_regions:
     - europe-west4
     - me-west1
     - us-central1
+    - us-east1
     - us-west1
     - us-west3
     - us-west4
+  a100-80gb:
+    - us-central1
+    - us-east4
+    - us-east5
+    - europe-west4
+    - asia-southeast1
+  h100-80gb:
+    - us-central1
 
 # Available MIG clusters and their GPU types
 mig_clusters:
-  1xv100: v100
-  1xa100-40gb: a100-40gb
-  2xa100-40gb: a100-40gb
-  4xa100-40gb: a100-40gb
-  8xa100-40gb: a100-40gb
-  16xa100-40gb: a100-40gb
+  # V100
+  1xv100: v100  # small jobs, such as CV training
+  4xv100: v100  # medium jobs, such as llama3 8b
+  8xv100: v100  # large jobs, such as llama3 70b
+  # A100-40GB
+  1xa100-40gb: a100-40gb  # $ medium jobs, such as llama3 8b lora
+  2xa100-40gb: a100-40gb  # $$ medium jobs, such as llama3 8b full
+  4xa100-40gb: a100-40gb  # $$$ large jobs, such as llama3 70b lora
+  8xa100-40gb: a100-40gb  # $$$$ large jobs, such as llama3 70b full
+  # A100-80GB - $$$$$$ don't use these unless you know what you're doing
+  1xa100-80gb: a100-80gb
+  2xa100-80gb: a100-80gb
+  4xa100-80gb: a100-80gb
+  8xa100-80gb: a100-80gb
+  # H100-80GB - $$$$$$$$ don't use these unless you know what you're doing
+  8xh100-80gb: h100-80gb
 
 # Max scale limits for each MIG cluster
 max_scale_limits:
+  # V100
   1xv100: 32
+  4xv100: 32
+  8xv100: 32
+  # A100-40GB
   1xa100-40gb: 16
   2xa100-40gb: 8
   4xa100-40gb: 4
   8xa100-40gb: 2
-  16xa100-40gb: 1
+  # A100-80GB
+  1xa100-80gb: 16
+  2xa100-80gb: 8
+  4xa100-80gb: 4
+  8xa100-80gb: 2
+  # H100-80GB
+  8xh100-80gb: 1
