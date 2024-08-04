@@ -48,8 +48,8 @@ gpu_regions:
 mig_clusters:
   # V100
   1xv100: v100  # small jobs, such as CV training
-  4xv100: v100  # medium jobs, such as llama3 8b (maybe? we haven't tried this yet)
-  8xv100: v100  # large jobs, such as llama3 70b (maybe? we haven't tried this yet)
+  4xv100: v100  # medium jobs, such as llama3 8b
+  8xv100: v100  # large jobs, such as llama3 70b
   # A100-40GB
   1xa100-40gb: a100-40gb  # $ medium jobs, such as llama3 8b lora
   2xa100-40gb: a100-40gb  # $$ medium jobs, such as llama3 8b full
