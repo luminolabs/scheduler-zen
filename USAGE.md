@@ -28,6 +28,9 @@ To upload a dataset, use the following curl command as a template:
 gsutil cp /Users/your-name/Documents/your-dataset.jsonl gs://lum-pipeline-zen-jobs-us/datasets/your-name/your-dataset.jsonl
 ```
 
+or go to the [GCP web console](https://console.cloud.google.com/storage/browser/lum-pipeline-zen-jobs-us/datasets?project=neat-airport-407301) 
+and upload the file to `your-name` folder.
+
 The dataset needs to follow the following JSONL format. Here's an example:
 
 ```json
