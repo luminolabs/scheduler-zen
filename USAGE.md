@@ -20,6 +20,40 @@ Keep these terminal windows open to maintain the SSH tunnels.
 
 ## Interacting with the API
 
+### Uploading a dataset
+
+To upload a dataset, use the following curl command as a template:
+
+```bash
+gsutil cp /Users/your-name/Documents/your-dataset.jsonl gs://lum-pipeline-zen-jobs-us/datasets/your-name/your-dataset.jsonl
+```
+
+The dataset needs to follow the following JSONL format. Here's an example:
+
+```json
+{"messages": [{"role": "system", "content": "System message"}, {"role": "user", "content": "User message"}, {"role": "assistant", "content": "Assistant message"}]}
+```
+
+Here's a real world example, note that JSONL is not an array of JSON objects, rather it's lines of JSON objects:
+
+```json
+{"messages": [{"role": "system", "content": "You are a helpful assistant that helps people convert natural language to SQL. "}, {"role": "user", "content": "The database is department_management. Convert the following to a SQL command: How many heads of the departments are older than 56 ?"}, {"role": "assistant", "content": "SELECT count(*) FROM head WHERE age  >  56"}]}
+{"messages": [{"role": "system", "content": "You are a helpful assistant that helps people convert natural language to SQL. "}, {"role": "user", "content": "The database is department_management. Convert the following to a SQL command: List the name, born state and age of the heads of departments ordered by age."}, {"role": "assistant", "content": "SELECT name ,  born_state ,  age FROM head ORDER BY age"}]}
+{"messages": [{"role": "system", "content": "You are a helpful assistant that helps people convert natural language to SQL. "}, {"role": "user", "content": "The database is department_management. Convert the following to a SQL command: List the creation year, name and budget of each department."}, {"role": "assistant", "content": "SELECT creation ,  name ,  budget_in_billions FROM department"}]}
+```
+
+### Estimating job cost
+
+Depending on which cluster you choose, the cost of the job will vary. To estimate the cost of a job cost:
+
+1. Go [here](https://console.cloud.google.com/compute/instancesAdd?project=neat-airport-407301&creationFlow=fromTemplate)
+2. Pick a template, the version doesn't matter, just look at the cluster (ie. GPU type and count,) ex `4xa100-40gb`
+3. Click Continue at the bottom
+4. See estimate on the right side of the page
+5. Look at older jobs in bigquery to see how long they took and get an estimate of how much the job will cost
+
+TODO: Eventually we should have a script that does this for us.
+
 ### Scheduling a New Job
 
 To schedule a new job, use the following curl command as a template.
@@ -31,21 +65,20 @@ If you're new to this, ask a team member to verify the configuration and help yo
 
 ```bash
 curl -X POST http://localhost:8000/jobs -H "Content-Type: application/json" -d '{
-  "job_id": "vasilis-protoml1-llama3-8b-lora-4xa100-40gb-run1",  
+  "job_id": "llm_llama3_8b-experiment1",  
   "workflow": "torchtunewrapper",
   "args": {
     "job_config_name": "llm_llama3_8b",
-    "dataset_id": "scaraveos/protoml1",
-    "train_file_path": "text2sql.jsonl",
+    "dataset_id": "gs://lum-pipeline-zen-jobs-us/datasets/protoml/text2sql.jsonl",
     "batch_size": 2,
     "shuffle": true,
     "num_epochs": 1,
     "use_lora": true, 
     "use_single_device": false,
-    "num_gpus": 4 
+    "num_gpus": 2 
   },
   "keep_alive": false,
-  "cluster": "4xa100-40gb" 
+  "cluster": "2xa100-40gb" 
 }'
 ```
 
