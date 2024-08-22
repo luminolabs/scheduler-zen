@@ -17,7 +17,7 @@ services:
       - .secrets:/project/.secrets
       - .logs:/project/.logs
     ports:
-      - "5200:80"
+      - "5200:5200"
     environment:
       - SZ_ENV=${SZ_ENV}
       - SZ_DB_NAME=${SZ_DB_NAME}
