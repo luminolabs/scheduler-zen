@@ -6,14 +6,14 @@ This document provides instructions on how to use the Pipeline Zen Jobs Schedule
 
 Before interacting with the API or database on the VM, you need to set up SSH tunnels. This allows you to securely access these services as if they were running on your local machine.
 
-1. For the API (assuming it runs on port 8000 on the VM):
+1. For the API (assuming it runs on port 5200 on the VM):
    ```
-   gcloud compute ssh --zone "us-central1-a" "scheduler-zen" -- -L 8000:localhost:8000
+   gcloud compute ssh --zone "us-central1-a" "scheduler-zen" -- -L 6200:localhost:5200
    ```
 
-2. For the database (assuming PostgreSQL runs on port 5432 on the VM):
+2. For the database (assuming PostgreSQL runs on port 35200 on the VM):
    ```
-   gcloud compute ssh --zone "us-central1-a" "scheduler-zen" -- -L 5432:localhost:5432
+   gcloud compute ssh --zone "us-central1-a" "scheduler-zen" -- -L 45200:localhost:35200
    ```
 
 Keep these terminal windows open to maintain the SSH tunnels.
@@ -67,7 +67,7 @@ and find the `mig_clusters` section.
 If you're new to this, ask a team member to verify the configuration and help you schedule your first job.
 
 ```bash
-curl -X POST http://localhost:8000/jobs -H "Content-Type: application/json" -d '{
+curl -X POST http://localhost:6200/jobs -H "Content-Type: application/json" -d '{
   "job_id": "llm_llama3_8b-experiment1",  
   "workflow": "torchtunewrapper",
   "args": {
@@ -90,7 +90,7 @@ curl -X POST http://localhost:8000/jobs -H "Content-Type: application/json" -d '
 To stop a running job, use the following curl command:
 
 ```bash
-curl -X POST http://localhost:8000/jobs/{job_id}/stop
+curl -X POST http://localhost:6200/jobs/{job_id}/stop
 ```
 
 Replace `{job_id}` with the ID of the job you want to stop.
@@ -100,7 +100,7 @@ Replace `{job_id}` with the ID of the job you want to stop.
 To get the status of the scheduler, including information about running and pending jobs, use:
 
 ```bash
-curl http://localhost:8000/status
+curl http://localhost:6200/status
 ```
 
 ## Interacting with the Database
@@ -133,7 +133,7 @@ you use intellij, you can use the database plugin to connect to the database.
 To connect to the PostgreSQL database, use the following command:
 
 ```bash
-psql -h localhost -p 5432 -U reader -d scheduler_zen
+psql -h localhost -p 45200 -U writer -d scheduler_zen
 ```
 
 You'll be prompted to enter the password for the `reader`.
