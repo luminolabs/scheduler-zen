@@ -10,7 +10,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "35200:5432"
 
   api:
     build: .
@@ -19,7 +19,7 @@ services:
       - .secrets:/project/.secrets
       - .logs:/project/.logs
     ports:
-      - "8000:8000"
+      - "5200:80"
     environment:
       - SZ_ENV=${SZ_ENV}
       - SZ_DB_NAME=${SZ_DB_NAME}
