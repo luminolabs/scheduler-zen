@@ -109,7 +109,7 @@ class FakeMigManager:
         """
         job_id = job['job_id']
         cluster = job['cluster']
-        region = self.get_region_for_cluster(cluster)
+        region = await self.get_region_for_cluster(cluster)
         mig_name = f"pipeline-zen-jobs-{cluster}-{region}"
 
         if region not in self.migs or mig_name not in self.migs[region] or not self.migs[region][mig_name]:
@@ -120,7 +120,7 @@ class FakeMigManager:
         task = asyncio.create_task(self.simulate_vm(job_id, vm_name, region, mig_name))
         self.active_vms[vm_name] = task
 
-    def get_region_for_cluster(self, cluster: str) -> str:
+    async def get_region_for_cluster(self, cluster: str) -> str:
         """
         Get a random region for the given cluster.
 
@@ -130,6 +130,7 @@ class FakeMigManager:
         Returns:
             str: A randomly selected region for the cluster.
         """
+        await asyncio.sleep(5)
         available_regions = self.gpu_regions[cluster]
         return random.choice(available_regions)
 
@@ -265,8 +266,8 @@ class FakeMigManager:
         """
         target_size, running_vm_count = await self.get_target_and_running_vm_counts(region, mig_name)
         return {
-            "target_size": target_size,
-            "running_vm_count": running_vm_count,
             "region": region,
-            "mig_name": mig_name
+            "mig_name": mig_name,
+            "target_size": target_size,
+            "current_size": running_vm_count,
         }

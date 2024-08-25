@@ -100,15 +100,12 @@ class ClusterManager:
             Dict[str, Any]: A dictionary containing the region status.
         """
         mig_name = self._get_mig_name(region)
-        target_size, current_size = await self.mig_manager.get_target_and_running_vm_counts(region, mig_name)
         jobs = await self._get_job_counts(region)
+        mig_status = await self.mig_manager.get_mig_status(region, mig_name)
 
         return {
-            "name": region,
-            "mig_name": mig_name,
-            "target_size": target_size,
-            "current_size": current_size,
-            "jobs": jobs
+            **mig_status,
+            **{"jobs": jobs}
         }
 
     async def _get_job_counts(self, region: str) -> Dict[str, int]:

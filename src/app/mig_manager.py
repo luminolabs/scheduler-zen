@@ -100,8 +100,8 @@ class MigManager:
         """
         target_size, running_vm_count = await self.get_target_and_running_vm_counts(region, mig_name)
         return {
-            "target_size": target_size,
-            "running_vm_count": running_vm_count,
             "region": region,
-            "mig_name": mig_name
+            "mig_name": mig_name,
+            "target_size": target_size,
+            "current_size": running_vm_count,
         }

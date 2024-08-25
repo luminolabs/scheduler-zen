@@ -66,18 +66,14 @@ class ClusterOrchestrator:
         }
 
         for cluster, manager in self.cluster_managers.items():
-            try:
-                cluster_status = await manager.get_status()
-                status["clusters"].append(cluster_status)
+            cluster_status = await manager.get_status()
+            status["clusters"].append(cluster_status)
 
-                # Update overall summary
-                status["overall_summary"]["running_jobs"] += cluster_status["cluster_summary"]["jobs"]["running"]
-                status["overall_summary"]["pending_jobs"] += cluster_status["cluster_summary"]["jobs"]["pending"]
-                status["overall_summary"]["total_running_vms"] += cluster_status["cluster_summary"]["total_running_vms"]
-                status["overall_summary"]["total_target_vms"] += cluster_status["cluster_summary"]["total_target_vms"]
-
-            except Exception as e:
-                logger.error(f"Error updating status for cluster {cluster}: {e}")
+            # Update overall summary
+            status["overall_summary"]["running_jobs"] += cluster_status["cluster_summary"]["jobs"]["running"]
+            status["overall_summary"]["pending_jobs"] += cluster_status["cluster_summary"]["jobs"]["pending"]
+            status["overall_summary"]["total_running_vms"] += cluster_status["cluster_summary"]["total_running_vms"]
+            status["overall_summary"]["total_target_vms"] += cluster_status["cluster_summary"]["total_target_vms"]
 
         status["overall_summary"]["total_jobs"] = (
                 status["overall_summary"]["running_jobs"] +
