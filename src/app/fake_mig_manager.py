@@ -18,7 +18,7 @@ class FakeMigManager:
     job assignment, and VM lifecycle management.
     """
 
-    def __init__(self, project_id: str, heartbeat_topic: str, start_job_subscription: str, database: Database):
+    def __init__(self, project_id: str, heartbeat_topic: str, start_job_subscription: str, db: Database):
         """
         Initialize the FakeMigManager.
 
@@ -26,7 +26,7 @@ class FakeMigManager:
             project_id (str): The GCP project ID.
             heartbeat_topic (str): The Pub/Sub topic for heartbeat messages.
             start_job_subscription (str): The Pub/Sub subscription for new job messages.
-            database (Database): The database instance for logging activities.
+            db (Database): The database instance for logging activities.
         """
         self.project_id = project_id
         self.heartbeat_topic = heartbeat_topic
@@ -44,7 +44,7 @@ class FakeMigManager:
         self.running = False
         self.main_task: Optional[asyncio.Task] = None
         self.gpu_regions = config.gpu_regions
-        self.database = database
+        self.db = db
 
     async def start(self) -> None:
         self.running = True
@@ -169,7 +169,7 @@ class FakeMigManager:
 
         # Log the activity
         activity_description = f"Scaled MIG {mig_name} in region {region} to {target_size} instances"
-        await self.database.log_activity(activity_description)
+        await self.db.log_activity(activity_description)
 
     async def get_target_and_running_vm_counts(self, region: str, mig_name: str) -> Tuple[int, int]:
         """
@@ -199,12 +199,12 @@ class FakeMigManager:
             mig_name (str): The name of the MIG the VM belongs to.
         """
         # Simulate VM startup time
-        await asyncio.sleep(random.uniform(40, 60))
+        await asyncio.sleep(random.uniform(15, 25))
 
         # Send a few RUNNING heartbeats
-        for _ in range(random.randint(10, 15)):
+        for _ in range(random.randint(5, 8)):
             await self.send_heartbeat(job_id, vm_name, "RUNNING")
-            await asyncio.sleep(5)
+            await asyncio.sleep(3)
 
         # Send a COMPLETED heartbeat
         await self.send_heartbeat(job_id, vm_name, "COMPLETED")
@@ -251,7 +251,7 @@ class FakeMigManager:
 
         # Log the activity
         activity_description = f"Deleted VM {vm_name} from MIG {mig_name} in region {region}. New size: {new_size}"
-        await self.database.log_activity(activity_description)
+        await self.db.log_activity(activity_description)
 
     async def get_mig_status(self, region: str, mig_name: str) -> Dict[str, Any]:
         """

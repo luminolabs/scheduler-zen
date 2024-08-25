@@ -14,18 +14,18 @@ logger = setup_logger(__name__)
 class MigManager:
     """Manages the Google Cloud Managed Instance Groups (MIGs)."""
 
-    def __init__(self, project_id: str, database: Database):
+    def __init__(self, project_id: str, db: Database):
         """
         Initialize the MigManager with a project ID.
 
         Args:
             project_id (str): The Google Cloud project ID.
-            database (Database): The database instance for logging activities.
+            db (Database): The database instance for logging activities.
         """
         self.project_id = project_id
         self.client = compute_v1.RegionInstanceGroupManagersClient()
         self.semaphore = asyncio.Semaphore(config.mig_api_rate_limit)
-        self.db = database
+        self.db = db
         logger.info(f"MigManager initialized with project_id: {project_id}")
 
     @retry_async.AsyncRetry()

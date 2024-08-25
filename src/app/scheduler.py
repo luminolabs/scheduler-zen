@@ -121,8 +121,7 @@ class Scheduler:
             await self.db.update_job(job_id, new_status, vm_name, region)
 
             # Log the activity only for specific status changes
-            if (old_status != new_status and
-                    (new_status != JOB_STATUS_RUNNING or old_status == JOB_STATUS_PENDING)):
+            if old_status != new_status:
                 activity_description = f"Job '{job_id}' status changed from {old_status} to {new_status}; region: {region}; VM name: {vm_name}"
                 await self.db.log_activity(activity_description)
                 logger.info(activity_description)

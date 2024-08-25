@@ -17,7 +17,7 @@ class ClusterOrchestrator:
             cluster_configs: Dict[str, List[str]],
             mig_manager: Union[MigManager, FakeMigManager],
             max_scale_limits: Dict[str, int],
-            database: Database
+            db: Database
     ):
         """
         Initialize the ClusterOrchestrator.
@@ -27,7 +27,7 @@ class ClusterOrchestrator:
             cluster_configs (Dict[str, List[str]]): A dictionary mapping cluster names to lists of regions.
             mig_manager (Union[MigManager, FakeMigManager]): The MIG manager instance responsible for scaling VMs.
             max_scale_limits (Dict[str, int]): A dictionary mapping cluster names to max scale limits.
-            database (Database): The database instance for querying job information.
+            db (Database): The database instance for querying job information.
         """
         self.project_id = project_id
         self.cluster_managers = {
@@ -37,12 +37,12 @@ class ClusterOrchestrator:
                 cluster,
                 mig_manager,
                 max_scale_limits.get(cluster, float('inf')),
-                database
+                db
             )
             for cluster, regions in cluster_configs.items()
         }
         self.mig_manager = mig_manager
-        self.database = database
+        self.db = db
         logger.info(f"ClusterOrchestrator initialized with project_id: {project_id}, "
                     f"cluster_configs: {cluster_configs}")
 
@@ -85,11 +85,11 @@ class ClusterOrchestrator:
 
     async def scale_clusters(self, pending_jobs: Dict[str, int], running_jobs: Dict[str, Dict[str, int]]) -> None:
         """
-        Scale all clusters based on pending jobs.
+        Scale all clusters based on running VMs and pending jobs.
 
         Args:
-            pending_jobs (Dict[str, int]): Dictionary of pending job counts per cluster.
-            running_jobs (Dict[str, Dict[str, int]]): Dictionary of running job counts per cluster and region
+            pending_jobs (Dict[str, int]): Pending job counts per cluster.
+            running_jobs (Dict[str, Dict[str, int]]): Running job counts per cluster and region
         """
         scaling_tasks = []
         for cluster, manager in self.cluster_managers.items():

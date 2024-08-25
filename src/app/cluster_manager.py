@@ -19,7 +19,7 @@ class ClusterManager:
             cluster: str,
             mig_manager: MigManager,
             max_scale_limit: int,
-            database: Database
+            db: Database
     ):
         """
         Initialize the ClusterManager.
@@ -30,14 +30,14 @@ class ClusterManager:
             cluster (str): The name of the cluster.
             mig_manager (MigManager): The MIG manager instance.
             max_scale_limit (int): The maximum scale limit for the cluster.
-            database (Database): The database instance for querying job information.
+            db (Database): The database instance for querying job information.
         """
         self.project_id = project_id
         self.regions = regions
         self.cluster = cluster
         self.mig_manager = mig_manager
         self.max_scale_limit = max_scale_limit
-        self.database = database
+        self.db = db
         logger.info(f"ClusterManager initialized with project_id: {project_id}, regions: {regions}, "
                     f"cluster: {cluster}, max_scale_limit: {max_scale_limit}")
 
@@ -53,23 +53,11 @@ class ClusterManager:
         """
         return f"pipeline-zen-jobs-{self.cluster}-{region}"
 
-    async def _get_job_counts(self, region: str) -> Dict[str, int]:
-        """
-        Get the count of running and pending jobs for a specific region.
-
-        Args:
-            region (str): The region to get job counts for.
-
-        Returns:
-            Dict[str, int]: A dictionary containing the count of running and pending jobs.
-        """
-        return await self.database.get_job_counts(self.cluster, region)
-
     async def scale_all_regions(self,
                                 pending_jobs_count: int,
                                 running_jobs_count_per_region: Dict[str, int]) -> None:
         """
-        Scale all regions based on pending jobs.
+        Scale all regions based on running VMs and pending jobs.
 
         Args:
             pending_jobs_count (int): Number of pending jobs.
@@ -84,11 +72,11 @@ class ClusterManager:
 
     async def _scale_region(self, region: str, pending_jobs_count: int, running_jobs_count: int) -> None:
         """
-        Scale a specific region based on pending jobs.
+        Scale a specific region based on running VMs and pending jobs.
 
         Args:
             region (str): The region to scale.
-            pending_jobs_count (int): Number of pending jobs.
+            pending_jobs_count (int): Number of pending jobs in the region.
         """
         mig_name = self._get_mig_name(region)
         try:
@@ -103,12 +91,12 @@ class ClusterManager:
 
             if new_target_size != current_target_size:
                 await self.mig_manager.scale_mig(region, mig_name, new_target_size)
-                logger.info(f"Scaled MIG: {mig_name}: Region: {region}: {current_target_size} --> {new_target_size}")
+                logger.info(f"Scaled MIG: {mig_name}: Region: {region}: {current_target_size} -> {new_target_size}")
             else:
                 logger.info(f"No scaling needed for MIG: {mig_name}, current target size: {current_target_size}")
         except Exception as e:
             error_message = f"Error scaling region {region}: {str(e)}"
-            await self.database.log_activity(error_message)
+            await self.db.log_activity(error_message)
             logger.error(error_message)
 
     async def get_status(self) -> Dict[str, Any]:
@@ -158,7 +146,7 @@ class ClusterManager:
             Dict[str, Any]: A dictionary containing the region status.
         """
         mig_name = self._get_mig_name(region)
-        jobs = await self._get_job_counts(region)
+        jobs = await self.db.get_job_counts(self.cluster, region)
         mig_status = await self.mig_manager.get_mig_status(region, mig_name)
 
         return {
