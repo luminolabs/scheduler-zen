@@ -2,7 +2,7 @@ import asyncpg
 import json
 from typing import List, Dict, Any, Optional, Union
 
-from app.utils import JOB_STATUS_NEW, setup_logger
+from app.utils import JOB_STATUS_RUNNING, JOB_STATUS_PENDING, setup_logger, JOB_STATUS_NEW
 
 # Set up logging
 logger = setup_logger(__name__)
@@ -32,8 +32,42 @@ class Database:
         await self.pool.close()
         logger.info("Database connection pool closed")
 
+    async def get_recent_activities(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Fetch recent activities from the database.
+
+        Args:
+            limit (int): Maximum number of activities to fetch.
+
+        Returns:
+            List[Dict[str, Any]]: A list of recent activities.
+        """
+        async with self.pool.acquire() as conn:
+            query = """
+                SELECT timestamp, description 
+                FROM activities 
+                ORDER BY timestamp DESC 
+                LIMIT $1
+            """
+            rows = await conn.fetch(query, limit)
+            return [dict(row) for row in rows]
+
+    async def log_activity(self, description: str) -> None:
+        """
+        Log a new activity in the database.
+
+        Args:
+            description (str): Description of the activity.
+        """
+        async with self.pool.acquire() as conn:
+            query = """
+                INSERT INTO activities (description) 
+                VALUES ($1)
+            """
+            await conn.execute(query, description)
+
     async def create_tables(self) -> None:
-        """Create the necessary tables for job tracking."""
+        """Create the necessary tables for job tracking and activity logging."""
         async with self.pool.acquire() as conn:
             await conn.execute('''
                 CREATE TABLE IF NOT EXISTS jobs (
@@ -47,6 +81,13 @@ class Database:
                     status TEXT,
                     vm_name TEXT,
                     region TEXT
+                )
+            ''')
+            await conn.execute('''
+                CREATE TABLE IF NOT EXISTS activities (
+                    id SERIAL PRIMARY KEY,
+                    timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    description TEXT
                 )
             ''')
         logger.info("Database tables created")
@@ -130,6 +171,58 @@ class Database:
         logger.info(f"Retrieved {len(jobs)} jobs with status: {statuses}")
         return jobs
 
+    async def get_jobs_by_user_and_ids(self, user_id: str, job_ids: List[str]) -> List[Dict[str, Any]]:
+        """
+        Retrieve jobs for a specific user with the given job IDs.
+
+        Args:
+            user_id (str): The ID of the user.
+            job_ids (List[str]): A list of job IDs to retrieve.
+
+        Returns:
+            List[Dict[str, Any]]: A list of dictionaries with job details.
+        """
+        async with self.pool.acquire() as conn:
+            query = """
+                SELECT * FROM jobs 
+                WHERE user_id = $1 AND id = ANY($2)
+            """
+            rows = await conn.fetch(query, user_id, job_ids)
+            jobs = [self._row_to_dict(row) for row in rows]
+
+        logger.info(f"Retrieved {len(jobs)} jobs for user {user_id}")
+        return jobs
+
+    async def get_job_counts(self, cluster: str, region: str) -> Dict[str, int]:
+        """
+        Get the count of running and pending jobs for a specific cluster and region.
+
+        Args:
+            cluster (str): The cluster name.
+            region (str): The region name.
+
+        Returns:
+            Dict[str, int]: A dictionary containing the count of running and pending jobs.
+        """
+        async with self.pool.acquire() as conn:
+            query = """
+                SELECT status, COUNT(*) 
+                FROM jobs 
+                WHERE cluster = $1 AND region = $2 AND status IN ($3, $4)
+                GROUP BY status
+            """
+            rows = await conn.fetch(query, cluster, region, JOB_STATUS_RUNNING, JOB_STATUS_PENDING)
+
+            counts = {JOB_STATUS_RUNNING: 0, JOB_STATUS_PENDING: 0}
+            for row in rows:
+                counts[row['status']] = row['count']
+
+            logger.info(f"Job counts for cluster {cluster}, region {region}: {counts}")
+            return {
+                "running": counts[JOB_STATUS_RUNNING],
+                "pending": counts[JOB_STATUS_PENDING]
+            }
+
     @staticmethod
     def _generate_job_id() -> str:
         """
@@ -164,4 +257,5 @@ class Database:
             'status': row['status'],
             'vm_name': row['vm_name'],
             'region': row['region'],
+            'user_id': row['user_id'],
         }

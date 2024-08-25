@@ -19,7 +19,7 @@ Before proceeding with either local setup option, you need to create an `.env` f
    SZ_DB_USER=user123
    SZ_DB_PASS=pass123
    SZ_DB_HOST=localhost
-   SZ_DB_PORT=5432
+   SZ_DB_PORT=35200
    ```
 
 This `.env` file is crucial for both local setup options as it provides necessary configuration 

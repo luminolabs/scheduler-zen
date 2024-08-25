@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 from app.config_manager import config
 from app.utils import setup_logger
@@ -18,13 +18,19 @@ from app.fake_mig_manager import FakeMigManager
 logger = setup_logger(__name__)
 
 
-# Define the JobRequest model, that will be used to create new jobs
-class JobRequest(BaseModel):
+# Used to create a new job
+class CreateJobRequest(BaseModel):
     job_id: str
     workflow: str
     args: Dict[str, Any]
     keep_alive: bool
     cluster: str
+
+
+# Used to get jobs by user and IDs
+class ListUserJobsRequest(BaseModel):
+    user_id: str
+    job_ids: List[str]
 
 
 def init_scheduler():
@@ -44,7 +50,7 @@ def init_scheduler():
         mig_manager = MigManager(config.gcp_project)
 
     # Initialize the cluster orchestrator with max scale limits
-    cluster_orchestrator = ClusterOrchestrator(config.gcp_project, cluster_config, mig_manager, config.max_scale_limits)
+    cluster_orchestrator = ClusterOrchestrator(config.gcp_project, cluster_config, mig_manager, config.max_scale_limits, db)
     return Scheduler(db, pubsub, cluster_orchestrator)
 
 
@@ -76,30 +82,23 @@ app = FastAPI(lifespan=lifespan)
 
 
 @app.post("/jobs")
-async def create_job(job: JobRequest):
+async def create_job(job: CreateJobRequest) -> Dict[str, Any]:
     """
     Create a new job.
 
     Args:
-        job (JobRequest): The job details.
+        job (CreateJobRequest): The job details.
 
     Returns:
         dict: A dictionary containing the job_id of the added job.
-
-    Raises:
-        HTTPException: If there's an error adding the job.
     """
-    try:
-        job_id = await scheduler.add_job(job.dict())
-        logger.info(f"Added new job with ID: {job_id}")
-        return {"job_id": job_id, "status": "new"}
-    except Exception as e:
-        logger.error(f"Error adding job: {str(e)}")
-        raise HTTPException(status_code=500, detail="Error adding job")
+    job_id = await scheduler.add_job(job.dict())
+    logger.info(f"Added new job with ID: {job_id}")
+    return {"job_id": job_id, "status": "new"}
 
 
 @app.post("/jobs/{job_id}/stop")
-async def stop_job(job_id: str):
+async def stop_job(job_id: str) -> Dict[str, Any]:
     """
     Stop a running job.
 
@@ -108,9 +107,6 @@ async def stop_job(job_id: str):
 
     Returns:
         dict: A dictionary indicating the job was stopped.
-
-    Raises:
-        HTTPException: If the job is not found or not running.
     """
     success = await scheduler.stop_job(job_id)
     if not success:
@@ -120,21 +116,37 @@ async def stop_job(job_id: str):
     return {"status": "stopping"}
 
 
+@app.post("/jobs/get_by_user_and_ids")
+async def get_jobs_by_user_and_ids(request: ListUserJobsRequest) -> List[Dict[str, Any]]:
+    """
+    Get jobs for a specific user with the given job IDs.
+
+    This is primarily used by the Lumino API to refresh job details for a given user.
+    TODO: In the future, let's use webhooks to notify the Lumino API of job updates.
+
+    Args:
+        request (ListUserJobsRequest): The request containing user_id and job_ids.
+
+    Returns:
+        list: A list of jobs.
+    """
+    jobs = await scheduler.db.get_jobs_by_user_and_ids(request.user_id, request.job_ids)
+    logger.info(f"Retrieved {len(jobs)} jobs for user {request.user_id}")
+    return jobs
+
+
 @app.get("/status")
-async def get_status():
+async def get_status() -> Dict[str, Any]:
     """
     Get the current status of the scheduler.
 
     Returns:
         dict: The current status of the scheduler.
     """
-    try:
-        status = await scheduler.get_status()
-        logger.info("Retrieved scheduler status")
-        return status
-    except Exception as e:
-        logger.error(f"Error retrieving scheduler status: {str(e)}")
-        raise HTTPException(status_code=500, detail="Error retrieving status")
+    status = await scheduler.get_status()
+    logger.info("Retrieved scheduler status")
+    return status
+
 
 if __name__ == "__main__":
     import uvicorn

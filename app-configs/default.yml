@@ -63,12 +63,12 @@ mig_clusters:
   # H100-80GB - $$$$$$$$ don't use these unless you know what you're doing
   8xh100-80gb: h100-80gb
 
-# Max scale limits for each MIG cluster
+# Max scale limits for each MIG
 max_scale_limits:
   # V100
-  1xv100: 32
-  4xv100: 32
-  8xv100: 32
+  1xv100: 8
+  4xv100: 2
+  8xv100: 1
   # A100-40GB
   1xa100-40gb: 16
   2xa100-40gb: 8

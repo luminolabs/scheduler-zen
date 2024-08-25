@@ -5,3 +5,4 @@ __pycache__
 .logs
 *.sqlite
 .secrets
+scheduler-zen.txt

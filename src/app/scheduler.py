@@ -1,17 +1,19 @@
 import asyncio
 import json
-from typing import Any, Dict
+from datetime import datetime
+from typing import Any, Dict, List
 
 from app.config_manager import config
-from app.utils import get_region_from_vm_name, JOB_STATUS_RUNNING, JOB_STATUS_PENDING, JOB_STATUS_STOPPING, \
-    JOB_STATUS_NEW, is_new_job_status_valid, setup_logger
+from app.utils import (
+    JOB_STATUS_RUNNING, JOB_STATUS_PENDING, JOB_STATUS_COMPLETED,
+    JOB_STATUS_FAILED, setup_logger, JOB_STATUS_NEW, get_region_from_vm_name, is_new_job_status_valid,
+    JOB_STATUS_STOPPING
+)
 from app.database import Database
 from app.pubsub_client import PubSubClient
 from app.cluster_orchestrator import ClusterOrchestrator
 
-# Set up logging
 logger = setup_logger(__name__)
-
 
 class Scheduler:
     """Manages the scheduling of jobs in the system."""
@@ -34,8 +36,64 @@ class Scheduler:
         self.pubsub = pubsub
         self.cluster_orchestrator = cluster_orchestrator
         self.running = False
-        self.cluster_status: Dict[str, Dict[str, Any]] = {}
         logger.info("Scheduler initialized")
+
+    async def get_status(self) -> Dict[str, Any]:
+        """
+        Get the status of the scheduler, including cluster and job statuses.
+
+        Returns:
+            Dict[str, Any]: A dictionary with the scheduler status.
+        """
+        status = await self.cluster_orchestrator.update_status()
+
+        # Add completed and failed job counts
+        completed_jobs = await self.db.get_jobs_by_status(JOB_STATUS_COMPLETED)
+        failed_jobs = await self.db.get_jobs_by_status(JOB_STATUS_FAILED)
+        status["overall_summary"]["completed_jobs"] = len(completed_jobs)
+        status["overall_summary"]["failed_jobs"] = len(failed_jobs)
+        status["overall_summary"]["total_jobs"] += len(completed_jobs) + len(failed_jobs)
+
+        # Add timestamp
+        status["timestamp"] = datetime.utcnow().isoformat() + "Z"
+
+        # Add recent activities
+        status["recent_activities"] = await self.get_recent_activities()
+
+        logger.info(f"Scheduler status: {status}")
+        return status
+
+    async def get_recent_activities(self) -> List[Dict[str, str]]:
+        """
+        Get recent activities from the system.
+
+        Returns:
+            List[Dict[str, str]]: A list of recent activities.
+        """
+        # Fetch recent activities from the database
+        # This is a placeholder implementation. You'll need to implement
+        # the actual database query in the Database class.
+        activities = await self.db.get_recent_activities(limit=10)
+
+        return [
+            {
+                "timestamp": activity["timestamp"].isoformat() + "Z",
+                "activity": activity["description"]
+            }
+            for activity in activities
+        ]
+
+    async def log_activity(self, description: str) -> None:
+        """
+        Log a new activity in the system.
+
+        Args:
+            description (str): Description of the activity.
+        """
+        # Log the activity to the database
+        # This is a placeholder implementation. You'll need to implement
+        # the actual database insertion in the Database class.
+        await self.db.log_activity(description)
 
     async def start(self) -> None:
         """Start the scheduler to manage jobs."""
@@ -81,7 +139,10 @@ class Scheduler:
                 await self.pubsub.publish_start_signal('pipeline-zen-jobs-start', job)
                 # Update job status to PENDING in the database
                 await self.db.update_job(job['job_id'], JOB_STATUS_PENDING)
-                logger.info(f"Scheduled job id: {job['job_id']} for cluster: {job['cluster']}")
+                # Log the activity
+                activity_description = f"Job '{job['job_id']}' status changed from {JOB_STATUS_NEW} to {JOB_STATUS_PENDING}"
+                await self.db.log_activity(activity_description)
+                logger.info(activity_description)
             await asyncio.sleep(5)
 
     async def _listen_for_heartbeats(self) -> None:
@@ -95,27 +156,30 @@ class Scheduler:
             Args:
                 message_data (str): JSON-encoded heartbeat data.
             """
-            # Parse message data
             data = json.loads(message_data)
             job_id = data['job_id']
             new_status = data['status']
             vm_name = data['vm_name']
             region = get_region_from_vm_name(vm_name)
 
-            # Ignore outdated heartbeats; only update if the status is same or newer
-            # because Pub/Sub messages aren't ordered.
-            # This is mostly to handle the case where the Scheduler restarts or is down for a while and starts again.
             job = await self.db.get_job(job_id)
             if not job:
                 logger.info(f"Ignoring heartbeat for non-existent job id: {job_id}")
-                return  # Ignore heartbeats for non-existent jobs
+                return
+
             old_status = job['status']
-            if job and not is_new_job_status_valid(old_status, new_status):
+            if not is_new_job_status_valid(old_status, new_status):
                 return
 
             # Update job status and timestamp in the database
             await self.db.update_job(job_id, new_status, vm_name, region)
-            logger.info(f"Updated job id: {job_id} with status: {new_status} and VM name: {vm_name}")
+
+            # Log the activity only for specific status changes
+            if (old_status != new_status and
+                    (new_status != JOB_STATUS_RUNNING or old_status == JOB_STATUS_PENDING)):
+                activity_description = f"Job '{job_id}' status changed from {old_status} to {new_status}"
+                await self.db.log_activity(activity_description)
+                logger.info(activity_description)
 
         self.pubsub.heartbeat_callback = heartbeat_callback
         await self.pubsub.listen_for_heartbeats(config.heartbeat_subscription)
@@ -124,14 +188,10 @@ class Scheduler:
         """Monitor cluster status and scale as necessary."""
         logger.info("Starting cluster monitoring and scaling")
         while self.running:
-            # Update cluster status
-            self.cluster_status = await self.cluster_orchestrator.update_status()
-            logger.info(f"Updated cluster status: {self.cluster_status}")
             # Get information needed for scaling
             pending_job_counts = await self._get_pending_jobs_by_cluster()
-            running_job_counts = await self._get_running_jobs_by_cluster_and_region()
             # Scale clusters
-            await self.cluster_orchestrator.scale_clusters(pending_job_counts, running_job_counts)
+            await self.cluster_orchestrator.scale_clusters(pending_job_counts)
             await asyncio.sleep(10)
 
     async def _get_pending_jobs_by_cluster(self) -> Dict[str, int]:
@@ -195,12 +255,20 @@ class Scheduler:
         Returns:
             Dict[str, Any]: A dictionary with the scheduler status.
         """
-        running_jobs = await self.db.get_jobs_by_status(JOB_STATUS_RUNNING)
-        pending_jobs = await self.db.get_jobs_by_status(JOB_STATUS_PENDING)
-        status = {
-            'cluster_status': self.cluster_status,
-            'running_jobs': len(running_jobs),
-            'pending_jobs': len(pending_jobs)
-        }
+        status = await self.cluster_orchestrator.update_status()
+
+        # Add completed and failed job counts
+        completed_jobs = await self.db.get_jobs_by_status(JOB_STATUS_COMPLETED)
+        failed_jobs = await self.db.get_jobs_by_status(JOB_STATUS_FAILED)
+        status["overall_summary"]["completed_jobs"] = len(completed_jobs)
+        status["overall_summary"]["failed_jobs"] = len(failed_jobs)
+        status["overall_summary"]["total_jobs"] += len(completed_jobs) + len(failed_jobs)
+
+        # Add timestamp
+        status["timestamp"] = datetime.utcnow().isoformat() + "Z"
+
+        # Add recent activities
+        status["recent_activities"] = await self.get_recent_activities()
+
         logger.info(f"Scheduler status: {status}")
         return status
