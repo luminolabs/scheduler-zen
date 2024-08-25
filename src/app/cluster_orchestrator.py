@@ -83,17 +83,19 @@ class ClusterOrchestrator:
         logger.info(f"Updated status: {status}")
         return status
 
-    async def scale_clusters(self, pending_jobs: Dict[str, int]) -> None:
+    async def scale_clusters(self, pending_jobs: Dict[str, int], running_jobs: Dict[str, Dict[str, int]]) -> None:
         """
         Scale all clusters based on pending jobs.
 
         Args:
             pending_jobs (Dict[str, int]): Dictionary of pending job counts per cluster.
+            running_jobs (Dict[str, Dict[str, int]]): Dictionary of running job counts per cluster and region
         """
         scaling_tasks = []
         for cluster, manager in self.cluster_managers.items():
             cluster_pending_jobs_count = pending_jobs.get(cluster, 0)
-            scaling_tasks.append(manager.scale_all_regions(cluster_pending_jobs_count))
+            cluster_running_jobs_count = running_jobs.get(cluster, {})
+            scaling_tasks.append(manager.scale_all_regions(cluster_pending_jobs_count, cluster_running_jobs_count))
 
         await asyncio.gather(*scaling_tasks)
 

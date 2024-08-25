@@ -65,20 +65,24 @@ class ClusterManager:
         """
         return await self.database.get_job_counts(self.cluster, region)
 
-    async def scale_all_regions(self, pending_jobs_count: int) -> None:
+    async def scale_all_regions(self,
+                                pending_jobs_count: int,
+                                running_jobs_count_per_region: Dict[str, int]) -> None:
         """
         Scale all regions based on pending jobs.
 
         Args:
             pending_jobs_count (int): Number of pending jobs.
+            running_jobs_count_per_region (Dict[str, int]): Number of running jobs per region.
         """
         logger.info(f"Scaling all regions for cluster: {self.cluster}.")
         tasks = []
         for region in self.regions:
-            tasks.append(self._scale_region(region, pending_jobs_count))
+            region_running_jobs_count = running_jobs_count_per_region.get(region, 0)
+            tasks.append(self._scale_region(region, pending_jobs_count, region_running_jobs_count))
         await asyncio.gather(*tasks)
 
-    async def _scale_region(self, region: str, pending_jobs_count: int) -> None:
+    async def _scale_region(self, region: str, pending_jobs_count: int, running_jobs_count: int) -> None:
         """
         Scale a specific region based on pending jobs.
 
@@ -95,7 +99,7 @@ class ClusterManager:
             # Scale up if there are pending jobs and not all running VMs are utilized
             # Scale down if there are no pending jobs and there are idle VMs
             # Always limit the target size to the max scale limit
-            new_target_size = min(running_vm_count + pending_jobs_count, self.max_scale_limit)
+            new_target_size = min(max(running_vm_count, running_jobs_count + pending_jobs_count), self.max_scale_limit)
 
             if new_target_size != current_target_size:
                 await self.mig_manager.scale_mig(region, mig_name, new_target_size)

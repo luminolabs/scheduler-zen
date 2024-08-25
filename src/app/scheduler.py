@@ -136,8 +136,9 @@ class Scheduler:
         while self.running:
             # Get information needed for scaling
             pending_job_counts = await self._get_pending_jobs_by_cluster()
+            running_job_counts = await self._get_running_jobs_by_cluster_and_region()
             # Scale clusters
-            await self.cluster_orchestrator.scale_clusters(pending_job_counts)
+            await self.cluster_orchestrator.scale_clusters(pending_job_counts, running_job_counts)
             await asyncio.sleep(10)
 
     async def _get_pending_jobs_by_cluster(self) -> Dict[str, int]:
@@ -154,6 +155,23 @@ class Scheduler:
         for job in pending_jobs:
             cluster = job['cluster']
             mapping[cluster] = mapping.get(cluster, 0) + 1
+        return mapping
+
+    async def _get_running_jobs_by_cluster_and_region(self) -> Dict[str, Dict[str, int]]:
+        """
+        Get the count of running jobs for each cluster and region.
+        ex. {'cluster1': {'region1': 2, 'region2': 1}, 'cluster2': {'region1': 1}}
+        Returns:
+            Dict[str, Dict[str, int]]: A dictionary mapping cluster names to dictionaries of
+             region to running job counts.
+        """
+        running_jobs = await self.db.get_jobs_by_status(JOB_STATUS_RUNNING)
+        mapping = {}
+        for job in running_jobs:
+            cluster = job['cluster']
+            region = job['region']
+            mapping.setdefault(cluster, {}).setdefault(region, 0)
+            mapping[cluster][region] += 1
         return mapping
 
     async def stop_job(self, job_id: str) -> bool:
