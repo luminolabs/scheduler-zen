@@ -46,7 +46,7 @@ class ClusterOrchestrator:
         logger.info(f"ClusterOrchestrator initialized with project_id: {project_id}, "
                     f"cluster_configs: {cluster_configs}")
 
-    async def update_status(self) -> Dict[str, Any]:
+    async def get_status(self) -> Dict[str, Any]:
         """
         Update and return the status of all clusters.
 
@@ -99,15 +99,6 @@ class ClusterOrchestrator:
 
         # Log the activity
         logger.info(f"Scaled clusters based on pending jobs: {pending_jobs}")
-
-    async def get_status(self) -> Dict[str, Any]:
-        """
-        Get the status of all clusters.
-
-        Returns:
-            Dict[str, Any]: A dictionary containing the status of all clusters.
-        """
-        return await self.update_status()
 
     def cluster_exists(self, cluster: str) -> bool:
         """

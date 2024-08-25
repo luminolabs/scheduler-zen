@@ -53,6 +53,60 @@ class ClusterManager:
         """
         return f"pipeline-zen-jobs-{self.cluster}-{region}"
 
+    async def _get_job_counts(self, region: str) -> Dict[str, int]:
+        """
+        Get the count of running and pending jobs for a specific region.
+
+        Args:
+            region (str): The region to get job counts for.
+
+        Returns:
+            Dict[str, int]: A dictionary containing the count of running and pending jobs.
+        """
+        return await self.database.get_job_counts(self.cluster, region)
+
+    async def scale_all_regions(self, pending_jobs_count: int) -> None:
+        """
+        Scale all regions based on pending jobs.
+
+        Args:
+            pending_jobs_count (int): Number of pending jobs.
+        """
+        logger.info(f"Scaling all regions for cluster: {self.cluster}.")
+        tasks = []
+        for region in self.regions:
+            tasks.append(self._scale_region(region, pending_jobs_count))
+        await asyncio.gather(*tasks)
+
+    async def _scale_region(self, region: str, pending_jobs_count: int) -> None:
+        """
+        Scale a specific region based on pending jobs.
+
+        Args:
+            region (str): The region to scale.
+            pending_jobs_count (int): Number of pending jobs.
+        """
+        mig_name = self._get_mig_name(region)
+        try:
+            current_target_size, running_vm_count = \
+                await self.mig_manager.get_target_and_running_vm_counts(region, mig_name)
+
+            # How scaling works:
+            # Scale up if there are pending jobs and not all running VMs are utilized
+            # Scale down if there are no pending jobs and there are idle VMs
+            # Always limit the target size to the max scale limit
+            new_target_size = min(running_vm_count + pending_jobs_count, self.max_scale_limit)
+
+            if new_target_size != current_target_size:
+                await self.mig_manager.scale_mig(region, mig_name, new_target_size)
+                logger.info(f"Scaled MIG: {mig_name}: Region: {region}: {current_target_size} --> {new_target_size}")
+            else:
+                logger.info(f"No scaling needed for MIG: {mig_name}, current target size: {current_target_size}")
+        except Exception as e:
+            error_message = f"Error scaling region {region}: {str(e)}"
+            await self.database.log_activity(error_message)
+            logger.error(error_message)
+
     async def get_status(self) -> Dict[str, Any]:
         """
         Get the status of all regions in the cluster.
@@ -107,57 +161,3 @@ class ClusterManager:
             **mig_status,
             **{"jobs": jobs}
         }
-
-    async def _get_job_counts(self, region: str) -> Dict[str, int]:
-        """
-        Get the count of running and pending jobs for a specific region.
-
-        Args:
-            region (str): The region to get job counts for.
-
-        Returns:
-            Dict[str, int]: A dictionary containing the count of running and pending jobs.
-        """
-        return await self.database.get_job_counts(self.cluster, region)
-
-    async def scale_all_regions(self, pending_jobs_count: int) -> None:
-        """
-        Scale all regions based on pending jobs.
-
-        Args:
-            pending_jobs_count (int): Number of pending jobs.
-        """
-        logger.info(f"Scaling all regions for cluster: {self.cluster}.")
-        tasks = []
-        for region in self.regions:
-            tasks.append(self._scale_region(region, pending_jobs_count))
-        await asyncio.gather(*tasks)
-
-    async def _scale_region(self, region: str, pending_jobs_count: int) -> None:
-        """
-        Scale a specific region based on pending jobs.
-
-        Args:
-            region (str): The region to scale.
-            pending_jobs_count (int): Number of pending jobs.
-        """
-        mig_name = self._get_mig_name(region)
-        try:
-            current_target_size, running_vm_count = \
-                await self.mig_manager.get_target_and_running_vm_counts(region, mig_name)
-
-            # How scaling works:
-            # Scale up if there are pending jobs and not all running VMs are utilized
-            # Scale down if there are no pending jobs and there are idle VMs
-            # Always limit the target size to the max scale limit
-            new_target_size = min(running_vm_count + pending_jobs_count, self.max_scale_limit)
-
-            if new_target_size != current_target_size:
-                await self.mig_manager.scale_mig(region, mig_name, new_target_size)
-                logger.info(f"Scaled MIG: {mig_name}: Region: {region}: {current_target_size} --> {new_target_size}")
-            else:
-                logger.info(f"No scaling needed for MIG: {mig_name}, current target size: {current_target_size}")
-        except Exception as e:
-            error_message = f"Error scaling region {region}: {str(e)}"
-            await self.database.log_activity(error_message)
-            logger.error(error_message)

@@ -1,8 +1,23 @@
+# IDE-specific files and directories
 .idea
+
+# Install dependencies from requirements.txt
+# this only applies when starting with ./scripts/start-scheduler.sh
+# which usually only happens in the VM on dev or prod
 .__pylibs__
+
+# Python bytecode cache
 __pycache__
+
+# Local environment variables file
 .env
+
+# Log files
 .logs
-*.sqlite
+
+# Directory for storing secrets
 .secrets
+
+# Generated file containing packed repository contents
+# for AI such as Claude
 scheduler-zen.txt
