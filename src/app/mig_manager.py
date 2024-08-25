@@ -1,9 +1,11 @@
 import asyncio
-from typing import List, Tuple
+from typing import List, Tuple, Dict, Any
 from google.cloud import compute_v1
 from google.api_core import retry_async
 
+from app.config_manager import config
 from app.utils import INSTANCE_STATUS_RUNNING, setup_logger
+from app.database import Database
 
 # Set up logging
 logger = setup_logger(__name__)
@@ -12,16 +14,18 @@ logger = setup_logger(__name__)
 class MigManager:
     """Manages the Google Cloud Managed Instance Groups (MIGs)."""
 
-    def __init__(self, project_id: str):
+    def __init__(self, project_id: str, database: Database):
         """
         Initialize the MigManager with a project ID.
 
         Args:
             project_id (str): The Google Cloud project ID.
+            database (Database): The database instance for logging activities.
         """
         self.project_id = project_id
         self.client = compute_v1.RegionInstanceGroupManagersClient()
-        self.semaphore = asyncio.Semaphore(10)  # Limit to 10 concurrent requests
+        self.semaphore = asyncio.Semaphore(config.mig_api_rate_limit)
+        self.db = database
         logger.info(f"MigManager initialized with project_id: {project_id}")
 
     @retry_async.AsyncRetry()
@@ -42,9 +46,11 @@ class MigManager:
                 size=target_size
             )
             operation = await asyncio.to_thread(self.client.resize, request)
-
-            logger.info(f"MIG: {mig_name}: Scaled to new size: {target_size}")
             await asyncio.to_thread(operation.result)
+
+            # Log the activity
+            activity_description = f"MIG: {mig_name}: Region: {region}: Scaled to new size: {target_size}"
+            await self.db.log_activity(activity_description)
 
     @retry_async.AsyncRetry()
     async def get_target_and_running_vm_counts(self, region: str, mig_name: str) -> Tuple[int, int]:
@@ -80,3 +86,22 @@ class MigManager:
 
             logger.info(f"MIG: {mig_name}: Got target size: {target_size}, running VMs: {len(running_vm_list)}")
             return target_size, len(running_vm_list)
+
+    async def get_mig_status(self, region: str, mig_name: str) -> Dict[str, Any]:
+        """
+        Get the status of a specified MIG.
+
+        Args:
+            region (str): The region of the MIG.
+            mig_name (str): The name of the MIG.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing the MIG status information.
+        """
+        target_size, running_vm_count = await self.get_target_and_running_vm_counts(region, mig_name)
+        return {
+            "target_size": target_size,
+            "running_vm_count": running_vm_count,
+            "region": region,
+            "mig_name": mig_name
+        }

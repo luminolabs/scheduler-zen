@@ -45,7 +45,7 @@ class Scheduler:
         Returns:
             Dict[str, Any]: A dictionary with the scheduler status.
         """
-        status = await self.cluster_orchestrator.update_status()
+        status = await self.cluster_orchestrator.get_status()
 
         # Add completed and failed job counts
         completed_jobs = await self.db.get_jobs_by_status(JOB_STATUS_COMPLETED)
@@ -70,9 +70,6 @@ class Scheduler:
         Returns:
             List[Dict[str, str]]: A list of recent activities.
         """
-        # Fetch recent activities from the database
-        # This is a placeholder implementation. You'll need to implement
-        # the actual database query in the Database class.
         activities = await self.db.get_recent_activities(limit=10)
 
         return [
@@ -82,18 +79,6 @@ class Scheduler:
             }
             for activity in activities
         ]
-
-    async def log_activity(self, description: str) -> None:
-        """
-        Log a new activity in the system.
-
-        Args:
-            description (str): Description of the activity.
-        """
-        # Log the activity to the database
-        # This is a placeholder implementation. You'll need to implement
-        # the actual database insertion in the Database class.
-        await self.db.log_activity(description)
 
     async def start(self) -> None:
         """Start the scheduler to manage jobs."""
@@ -124,7 +109,10 @@ class Scheduler:
             str: The ID of the newly added job.
         """
         job_id = await self.db.add_job(job_data)
-        logger.info(f"Added new job with ID: {job_id}")
+        # Log the activity
+        activity_description = f"Added new job with ID: {job_id}; status: {JOB_STATUS_NEW}"
+        await self.db.log_activity(activity_description)
+        logger.info(activity_description)
         return job_id
 
     async def _schedule_jobs(self) -> None:
@@ -177,7 +165,7 @@ class Scheduler:
             # Log the activity only for specific status changes
             if (old_status != new_status and
                     (new_status != JOB_STATUS_RUNNING or old_status == JOB_STATUS_PENDING)):
-                activity_description = f"Job '{job_id}' status changed from {old_status} to {new_status}"
+                activity_description = f"Job '{job_id}' status changed from {old_status} to {new_status}; region: {region}; VM name: {vm_name}"
                 await self.db.log_activity(activity_description)
                 logger.info(activity_description)
 
@@ -198,8 +186,6 @@ class Scheduler:
         """
         Get the count of pending jobs for each cluster.
 
-        ex. {'cluster1': 2, 'cluster2': 1}
-
         Returns:
             Dict[str, int]: A dictionary mapping cluster names to pending job counts.
         """
@@ -208,25 +194,6 @@ class Scheduler:
         for job in pending_jobs:
             cluster = job['cluster']
             mapping[cluster] = mapping.get(cluster, 0) + 1
-        return mapping
-
-    async def _get_running_jobs_by_cluster_and_region(self) -> Dict[str, Dict[str, int]]:
-        """
-        Get the count of running jobs for each cluster and region.
-
-        ex. {'cluster1': {'region1': 2, 'region2': 1}, 'cluster2': {'region1': 1}}
-
-        Returns:
-            Dict[str, Dict[str, int]]: A dictionary mapping cluster names to dictionaries of
-             region to running job counts.
-        """
-        running_jobs = await self.db.get_jobs_by_status(JOB_STATUS_RUNNING)
-        mapping = {}
-        for job in running_jobs:
-            cluster = job['cluster']
-            region = job['region']
-            mapping.setdefault(cluster, {}).setdefault(region, 0)
-            mapping[cluster][region] += 1
         return mapping
 
     async def stop_job(self, job_id: str) -> bool:
@@ -247,28 +214,3 @@ class Scheduler:
             return True
         logger.warning(f"Job id: {job_id} not running or does not exist")
         return False
-
-    async def get_status(self) -> Dict[str, Any]:
-        """
-        Get the status of the scheduler, including cluster and job statuses.
-
-        Returns:
-            Dict[str, Any]: A dictionary with the scheduler status.
-        """
-        status = await self.cluster_orchestrator.update_status()
-
-        # Add completed and failed job counts
-        completed_jobs = await self.db.get_jobs_by_status(JOB_STATUS_COMPLETED)
-        failed_jobs = await self.db.get_jobs_by_status(JOB_STATUS_FAILED)
-        status["overall_summary"]["completed_jobs"] = len(completed_jobs)
-        status["overall_summary"]["failed_jobs"] = len(failed_jobs)
-        status["overall_summary"]["total_jobs"] += len(completed_jobs) + len(failed_jobs)
-
-        # Add timestamp
-        status["timestamp"] = datetime.utcnow().isoformat() + "Z"
-
-        # Add recent activities
-        status["recent_activities"] = await self.get_recent_activities()
-
-        logger.info(f"Scheduler status: {status}")
-        return status

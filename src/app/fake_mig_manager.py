@@ -1,12 +1,13 @@
 import asyncio
 import json
 import random
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Any
 import queue
 
 from google.cloud import pubsub_v1
 
 from app.config_manager import config
+from app.database import Database
 
 
 class FakeMigManager:
@@ -17,7 +18,7 @@ class FakeMigManager:
     job assignment, and VM lifecycle management.
     """
 
-    def __init__(self, project_id: str, heartbeat_topic: str, start_job_subscription: str):
+    def __init__(self, project_id: str, heartbeat_topic: str, start_job_subscription: str, database: Database):
         """
         Initialize the FakeMigManager.
 
@@ -25,6 +26,7 @@ class FakeMigManager:
             project_id (str): The GCP project ID.
             heartbeat_topic (str): The Pub/Sub topic for heartbeat messages.
             start_job_subscription (str): The Pub/Sub subscription for new job messages.
+            database (Database): The database instance for logging activities.
         """
         self.project_id = project_id
         self.heartbeat_topic = heartbeat_topic
@@ -41,7 +43,8 @@ class FakeMigManager:
         self.message_queue = queue.Queue()
         self.running = False
         self.main_task: Optional[asyncio.Task] = None
-        self.gpu_regions = config.gpu_regions  # Store the GPU regions from config
+        self.gpu_regions = config.gpu_regions
+        self.database = database
 
     async def start(self) -> None:
         self.running = True
@@ -163,6 +166,10 @@ class FakeMigManager:
 
         print(f"Scaled MIG {mig_name} in region {region} to {target_size} instances")
 
+        # Log the activity
+        activity_description = f"Scaled MIG {mig_name} in region {region} to {target_size} instances"
+        await self.database.log_activity(activity_description)
+
     async def get_target_and_running_vm_counts(self, region: str, mig_name: str) -> Tuple[int, int]:
         """
         Get the target size and number of running VMs for a MIG.
@@ -191,12 +198,12 @@ class FakeMigManager:
             mig_name (str): The name of the MIG the VM belongs to.
         """
         # Simulate VM startup time
-        await asyncio.sleep(random.uniform(5, 15))
+        await asyncio.sleep(random.uniform(40, 60))
 
         # Send a few RUNNING heartbeats
-        for _ in range(random.randint(3, 7)):
+        for _ in range(random.randint(10, 15)):
             await self.send_heartbeat(job_id, vm_name, "RUNNING")
-            await asyncio.sleep(random.uniform(2, 5))
+            await asyncio.sleep(5)
 
         # Send a COMPLETED heartbeat
         await self.send_heartbeat(job_id, vm_name, "COMPLETED")
@@ -240,3 +247,26 @@ class FakeMigManager:
         # Simulate MIG auto-scaling down by 1
         new_size = len(self.migs[region][mig_name])
         print(f"MIG {mig_name} in region {region} auto-scaled down to {new_size} instances")
+
+        # Log the activity
+        activity_description = f"Deleted VM {vm_name} from MIG {mig_name} in region {region}. New size: {new_size}"
+        await self.database.log_activity(activity_description)
+
+    async def get_mig_status(self, region: str, mig_name: str) -> Dict[str, Any]:
+        """
+        Get the status of a specified MIG.
+
+        Args:
+            region (str): The region of the MIG.
+            mig_name (str): The name of the MIG.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing the MIG status information.
+        """
+        target_size, running_vm_count = await self.get_target_and_running_vm_counts(region, mig_name)
+        return {
+            "target_size": target_size,
+            "running_vm_count": running_vm_count,
+            "region": region,
+            "mig_name": mig_name
+        }

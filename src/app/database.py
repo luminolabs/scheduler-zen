@@ -80,7 +80,8 @@ class Database:
                     cluster TEXT,
                     status TEXT,
                     vm_name TEXT,
-                    region TEXT
+                    region TEXT,
+                    user_id TEXT
                 )
             ''')
             await conn.execute('''
@@ -108,12 +109,13 @@ class Database:
         keep_alive = job_data['keep_alive']
         cluster = job_data['cluster']
         status = JOB_STATUS_NEW
+        user_id = job_data.get('user_id') or "0"
 
         async with self.pool.acquire() as conn:
             await conn.execute('''
-                INSERT INTO jobs (id, workflow, args, keep_alive, cluster, status)
-                VALUES ($1, $2, $3, $4, $5, $6)
-            ''', job_id, workflow, args, keep_alive, cluster, status)
+                INSERT INTO jobs (id, workflow, args, keep_alive, cluster, status, user_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+            ''', job_id, workflow, args, keep_alive, cluster, status, user_id)
 
         logger.info(f"Added job with id: {job_id}, workflow: {workflow}, cluster: {cluster}")
         return job_id

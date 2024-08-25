@@ -42,6 +42,7 @@ class ClusterOrchestrator:
             for cluster, regions in cluster_configs.items()
         }
         self.mig_manager = mig_manager
+        self.database = database
         logger.info(f"ClusterOrchestrator initialized with project_id: {project_id}, "
                     f"cluster_configs: {cluster_configs}")
 
@@ -96,37 +97,29 @@ class ClusterOrchestrator:
         scaling_tasks = []
         for cluster, manager in self.cluster_managers.items():
             cluster_pending_jobs_count = pending_jobs.get(cluster, 0)
-            scaling_tasks.append(self._scale_cluster(cluster, manager, cluster_pending_jobs_count))
+            scaling_tasks.append(manager.scale_all_regions(cluster_pending_jobs_count))
 
         await asyncio.gather(*scaling_tasks)
+
+        # Log the activity
         logger.info(f"Scaled clusters based on pending jobs: {pending_jobs}")
 
-    async def _scale_cluster(self, cluster: str, manager: ClusterManager, pending_jobs_count: int) -> None:
+    async def get_status(self) -> Dict[str, Any]:
         """
-        Scale a single cluster and log the activity for each region.
+        Get the status of all clusters.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing the status of all clusters.
+        """
+        return await self.update_status()
+
+    def cluster_exists(self, cluster: str) -> bool:
+        """
+        Check if the specified cluster exists.
 
         Args:
             cluster (str): The name of the cluster.
-            manager (ClusterManager): The ClusterManager instance for this cluster.
-            pending_jobs_count (int): Number of pending jobs for this cluster.
+        Returns:
+            bool: True if the cluster exists, False otherwise
         """
-        for region in manager.regions:
-            mig_name = manager._get_mig_name(region)
-            try:
-                current_target_size, running_vm_count = await manager.mig_manager.get_target_and_running_vm_counts(region, mig_name)
-                new_target_size = min(running_vm_count + pending_jobs_count, manager.max_scale_limit)
-
-                if new_target_size != current_target_size:
-                    await manager.mig_manager.scale_mig(region, mig_name, new_target_size)
-                    scale_direction = "up" if new_target_size > current_target_size else "down"
-                    activity_description = (f"Scaled {scale_direction} MIG {mig_name} in region {region} "
-                                            f"from {current_target_size} to {new_target_size} instances")
-                    await manager.database.log_activity(activity_description)
-                    logger.info(activity_description)
-                else:
-                    logger.info(f"No scaling needed for MIG: {mig_name} in region {region}, "
-                                f"current target size: {current_target_size}")
-            except Exception as e:
-                error_message = f"Error scaling MIG {mig_name} in region {region}: {str(e)}"
-                await manager.database.log_activity(error_message)
-                logger.error(error_message)
+        return cluster in self.cluster_managers

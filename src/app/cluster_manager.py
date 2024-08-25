@@ -1,5 +1,5 @@
 import asyncio
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Any
 
 from app.database import Database
 from app.utils import setup_logger
@@ -157,11 +157,7 @@ class ClusterManager:
 
             if new_target_size != current_target_size:
                 await self.mig_manager.scale_mig(region, mig_name, new_target_size)
-                scale_direction = "up" if new_target_size > current_target_size else "down"
-                activity_description = (f"Scaled {scale_direction} MIG {mig_name} in region {region} "
-                                        f"from {current_target_size} to {new_target_size} instances")
-                await self.database.log_activity(activity_description)
-                logger.info(activity_description)
+                logger.info(f"Scaled MIG: {mig_name}: Region: {region}: {current_target_size} --> {new_target_size}")
             else:
                 logger.info(f"No scaling needed for MIG: {mig_name}, current target size: {current_target_size}")
         except Exception as e:
