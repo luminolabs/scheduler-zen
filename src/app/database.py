@@ -81,7 +81,8 @@ class Database:
                     status TEXT,
                     vm_name TEXT,
                     region TEXT,
-                    user_id TEXT
+                    user_id TEXT,
+                    notes TEXT
                 )
             ''')
             await conn.execute('''
@@ -260,4 +261,5 @@ class Database:
             'vm_name': row['vm_name'],
             'region': row['region'],
             'user_id': row['user_id'],
+            'notes': row['notes'],
         }
