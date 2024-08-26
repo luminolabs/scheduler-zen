@@ -23,18 +23,19 @@ class CreateJobRequest(BaseModel):
     job_id: str
     workflow: str
     args: Dict[str, Any]
-    keep_alive: bool
     gpu_type: str  # ex: "a100-40gb"
-    num_gpus: int  # ex: 4
+    num_gpus: int = 1
+    keep_alive: bool = False
 
     @computed_field
     def cluster(self) -> str:
         """
         Return the cluster name based on the GPU type and number of GPUs.
         Returns:
-            str: The cluster name. ex: "4xa100-40gb"
+            str: The cluster name. ex: "4xa100-40gb" or "local" if using fake MIG manager.
         """
-        return f"{self.num_gpus}x{self.gpu_type}"
+        return f"{self.num_gpus}x{self.gpu_type}" if not config.use_fake_mig_manager \
+            else "local"  # When using the fake MIG manager, we have a single "local" cluster
 
 
 # Used to get jobs by user and IDs
