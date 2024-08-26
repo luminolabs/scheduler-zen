@@ -2,7 +2,7 @@ import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, computed_field
 from typing import Dict, Any, List
 
 from app.config_manager import config
@@ -24,7 +24,17 @@ class CreateJobRequest(BaseModel):
     workflow: str
     args: Dict[str, Any]
     keep_alive: bool
-    cluster: str
+    gpu_type: str  # ex: "a100-40gb"
+    num_gpus: int  # ex: 4
+
+    @computed_field
+    def cluster(self) -> str:
+        """
+        Return the cluster name based on the GPU type and number of GPUs.
+        Returns:
+            str: The cluster name. ex: "4xa100-40gb"
+        """
+        return f"{self.num_gpus}x{self.gpu_type}"
 
 
 # Used to get jobs by user and IDs

@@ -79,8 +79,10 @@ class Scheduler:
         while self.running:
             new_jobs = await self.db.get_jobs_by_status(JOB_STATUS_NEW)
             for job in new_jobs:
-                # Add job_id to args for the training workflow to pick up
+                # Add job_id and num_gpus to args for the training workflow to pick up
+                # The training workflow only picks up `args`; not the entire job object
                 job['args']['job_id'] = job['job_id']
+                job['args']['num_gpus'] = job['num_gpus']
                 # Publish start signal to Pub/Sub
                 await self.pubsub.publish_start_signal('pipeline-zen-jobs-start', job)
                 # Update job status to PENDING in the database
