@@ -109,7 +109,7 @@ class Database:
         keep_alive = job_data['keep_alive']
         cluster = job_data['cluster']
         status = JOB_STATUS_NEW
-        user_id = job_data.get('user_id') or "0"
+        user_id = job_data.get('user_id')
 
         async with self.pool.acquire() as conn:
             await conn.execute('''

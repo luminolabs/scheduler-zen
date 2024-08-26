@@ -26,6 +26,7 @@ class CreateJobRequest(BaseModel):
     gpu_type: str  # ex: "a100-40gb"
     num_gpus: int = 1
     keep_alive: bool = False
+    user_id: str = "0"  # Default to 0 for internal jobs; the Customer API will set this to the user ID
 
     @computed_field
     def cluster(self) -> str:
