@@ -196,35 +196,37 @@ class Database:
         logger.info(f"Retrieved {len(jobs)} jobs for user {user_id}")
         return jobs
 
-    async def get_job_counts(self, cluster: str, region: str) -> Dict[str, int]:
+    async def get_job_count(self,
+                            status: str,
+                            cluster: str, region: Optional[str] = None) -> int:
         """
         Get the count of running and pending jobs for a specific cluster and region.
 
         Args:
+            status (str): The status of the jobs to count.
             cluster (str): The cluster name.
-            region (str): The region name.
+            region (Optional[str]): The region name.
 
         Returns:
             Dict[str, int]: A dictionary containing the count of running and pending jobs.
         """
         async with self.pool.acquire() as conn:
+            args = [cluster]
             query = """
-                SELECT status, COUNT(*) 
+                SELECT COUNT(*) 
                 FROM jobs 
-                WHERE cluster = $1 AND region = $2 AND status IN ($3, $4)
-                GROUP BY status
+                WHERE cluster = $1
             """
-            rows = await conn.fetch(query, cluster, region, JOB_STATUS_RUNNING, JOB_STATUS_PENDING)
+            if region:
+                args.append(region)
+                query += " AND region = $2"
+            args.append(status)
+            query += f" AND status = ${len(args)}"
+            result = await conn.fetch(query, *args)
+            count = result[0]['count']
 
-            counts = {JOB_STATUS_RUNNING: 0, JOB_STATUS_PENDING: 0}
-            for row in rows:
-                counts[row['status']] = row['count']
-
-            logger.info(f"Job counts for cluster {cluster}, region {region}: {counts}")
-            return {
-                "running": counts[JOB_STATUS_RUNNING],
-                "pending": counts[JOB_STATUS_PENDING]
-            }
+            logger.info(f"Running jobs for cluster {cluster}, region {region}: {count}")
+            return count
 
     @staticmethod
     def _generate_job_id() -> str:

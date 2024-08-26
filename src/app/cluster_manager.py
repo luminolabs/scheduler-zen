@@ -4,7 +4,7 @@ from typing import Dict, List, Any
 from google.api_core.exceptions import NotFound
 
 from app.database import Database
-from app.utils import setup_logger
+from app.utils import setup_logger, JOB_STATUS_RUNNING, JOB_STATUS_PENDING
 from app.mig_manager import MigManager
 
 # Set up logging
@@ -116,7 +116,7 @@ class ClusterManager:
                 "total_target_vms": 0,
                 "jobs": {
                     "running": 0,
-                    "pending": 0
+                    "pending": await self.db.get_job_count(JOB_STATUS_PENDING, self.cluster)
                 }
             },
             "regions": []
@@ -132,7 +132,6 @@ class ClusterManager:
             status["cluster_summary"]["total_running_vms"] += region_status["current_size"]
             status["cluster_summary"]["total_target_vms"] += region_status["target_size"]
             status["cluster_summary"]["jobs"]["running"] += region_status["jobs"]["running"]
-            status["cluster_summary"]["jobs"]["pending"] += region_status["jobs"]["pending"]
 
         return status
 
@@ -147,10 +146,10 @@ class ClusterManager:
             Dict[str, Any]: A dictionary containing the region status.
         """
         mig_name = self._get_mig_name(region)
-        jobs = await self.db.get_job_counts(self.cluster, region)
+        running_job_count = await self.db.get_job_count(JOB_STATUS_RUNNING, self.cluster, region)
         mig_status = await self.mig_manager.get_mig_status(region, mig_name)
 
         return {
             **mig_status,
-            **{"jobs": jobs}
+            **{"jobs": {"running": running_job_count}}
         }
