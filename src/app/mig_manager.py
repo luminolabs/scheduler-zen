@@ -1,5 +1,7 @@
 import asyncio
 from typing import List, Tuple, Dict, Any
+
+from google.api_core.exceptions import NotFound
 from google.cloud import compute_v1
 from google.api_core import retry_async
 
@@ -71,7 +73,13 @@ class MigManager:
                 region=region,
                 instance_group_manager=mig_name
             )
-            size_response = await asyncio.to_thread(self.client.get, size_request)
+
+            try:
+                size_response = await asyncio.to_thread(self.client.get, size_request)
+            except NotFound:
+                logger.error(f"MIG: {mig_name}: Region: {region}: Not found")
+                return 0, 0
+
             target_size = size_response.target_size
 
             # Get list of running VMs

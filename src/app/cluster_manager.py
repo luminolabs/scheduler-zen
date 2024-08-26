@@ -1,6 +1,8 @@
 import asyncio
 from typing import Dict, List, Any
 
+from google.api_core.exceptions import NotFound
+
 from app.database import Database
 from app.utils import setup_logger
 from app.mig_manager import MigManager
@@ -94,10 +96,9 @@ class ClusterManager:
                 logger.info(f"Scaled MIG: {mig_name}: Region: {region}: {current_target_size} -> {new_target_size}")
             else:
                 logger.info(f"No scaling needed for MIG: {mig_name}, current target size: {current_target_size}")
-        except Exception as e:
-            error_message = f"Error scaling region {region}: {str(e)}"
-            await self.db.log_activity(error_message)
-            logger.error(error_message)
+        except NotFound:
+            logger.error(f"MIG: {mig_name}: Region: {region}: Not found - removing region from cluster.")
+            self.regions.remove(region)
 
     async def get_status(self) -> Dict[str, Any]:
         """
