@@ -120,7 +120,10 @@ class Scheduler:
                 return
 
             # Update job status and timestamp in the database
-            await self.db.update_job(job_id, new_status, vm_name, region)
+            # Don't update status if it's a `RUNNING` status, and the old status was also `RUNNING`
+            # because it's a heartbeat, and we want to maintain the original `RUNNING` time
+            if not (old_status == JOB_STATUS_RUNNING and new_status == JOB_STATUS_RUNNING):
+                await self.db.update_job(job_id, new_status, vm_name, region)
 
             # Don't log if status is the same, `RUNNING` status is received as a heartbeat
             if old_status != new_status:
