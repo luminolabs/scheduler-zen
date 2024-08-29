@@ -95,8 +95,9 @@ class ClusterManager:
 
             # How scaling works:
             # - We target to whichever is higher:
-            #   - the number running VMs (because we never want to delete running VMs in the scheduler)
-            #   - or the number of running jobs + pending jobs
+            #   - the number running VMs;
+            #     because we never want the scheduler to delete running VMs; VMs delete themselves when jobs finish
+            #   - or the number of (running jobs + pending jobs)
             # - We also limit the target size to the max_scale_limit, so we don't surpass our quotas
             new_target_size = min(
                 max(
