@@ -88,7 +88,7 @@ class ClusterManager:
             current_target_size, running_vm_count = \
                 await self.mig_manager.get_target_and_running_vm_counts(region, mig_name)
 
-            # Check if there are any jobs running for less than 5 minutes
+            # Check if there are any jobs running for less than the threshold time
             recent_jobs = await self.db.get_recent_running_jobs(
                 self.cluster, region, timedelta(minutes=config.mig_recent_job_threshold))
             has_recent_jobs = len(recent_jobs) > 0
@@ -109,7 +109,7 @@ class ClusterManager:
             # Prevent scale down if there are recent jobs
             # The GCP MIG API, which controls which VMs are deleted, is not aware of our jobs running on the VMs
             # and can delete VMs with running jobs if the VM is too new.
-            # To prevent this, we skip scale down if there jobs that have been running for less than 5 minutes.
+            # To prevent this, we skip scale down if there are jobs that have been running for less than the threshold time.
             if has_recent_jobs and new_target_size < current_target_size:
                 logger.info(f"Skipping scale down for MIG: {mig_name} in region: {region} due to recent jobs")
                 return
