@@ -1,8 +1,10 @@
 import asyncio
+from datetime import timedelta
 from typing import Dict, List, Any
 
 from google.api_core.exceptions import NotFound
 
+from app.config_manager import config
 from app.database import Database
 from app.utils import setup_logger, JOB_STATUS_RUNNING, JOB_STATUS_PENDING
 from app.mig_manager import MigManager
@@ -79,17 +81,38 @@ class ClusterManager:
         Args:
             region (str): The region to scale.
             pending_jobs_count (int): Number of pending jobs in the region.
+            running_jobs_count (int): Number of running jobs in the region.
         """
         mig_name = self._get_mig_name(region)
         try:
             current_target_size, running_vm_count = \
                 await self.mig_manager.get_target_and_running_vm_counts(region, mig_name)
 
+            # Check if there are any jobs running for less than 5 minutes
+            recent_jobs = await self.db.get_recent_running_jobs(
+                self.cluster, region, timedelta(minutes=config.mig_recent_job_threshold))
+            has_recent_jobs = len(recent_jobs) > 0
+
             # How scaling works:
-            # Scale up if there are pending jobs and not all running VMs are utilized
-            # Scale down if there are no pending jobs and there are idle VMs
-            # Always limit the target size to the max scale limit
-            new_target_size = min(max(running_vm_count, running_jobs_count + pending_jobs_count), self.max_scale_limit)
+            # - We target to whichever is higher:
+            #   - the number running VMs (because we never want to delete running VMs in the scheduler)
+            #   - or the number of running jobs + pending jobs
+            # - We also limit the target size to the max_scale_limit, so we don't surpass our quotas
+            new_target_size = min(
+                max(
+                    running_vm_count,
+                    running_jobs_count + pending_jobs_count
+                ),
+                self.max_scale_limit
+            )
+
+            # Prevent scale down if there are recent jobs
+            # The GCP MIG API, which controls which VMs are deleted, is not aware of our jobs running on the VMs
+            # and can delete VMs with running jobs if the VM is too new.
+            # To prevent this, we skip scale down if there jobs that have been running for less than 5 minutes.
+            if has_recent_jobs and new_target_size < current_target_size:
+                logger.info(f"Skipping scale down for MIG: {mig_name} in region: {region} due to recent jobs")
+                return
 
             if new_target_size != current_target_size:
                 await self.mig_manager.scale_mig(region, mig_name, new_target_size)
