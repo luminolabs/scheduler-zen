@@ -2,7 +2,7 @@ import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, computed_field
 from typing import Dict, Any, List
 
 from app.config_manager import config
@@ -23,8 +23,20 @@ class CreateJobRequest(BaseModel):
     job_id: str
     workflow: str
     args: Dict[str, Any]
-    keep_alive: bool
-    cluster: str
+    gpu_type: str  # ex: "a100-40gb"
+    num_gpus: int = 1
+    keep_alive: bool = False
+    user_id: str = "0"  # Default to 0 for internal jobs; the Customer API will set this to the user ID
+
+    @computed_field
+    def cluster(self) -> str:
+        """
+        Return the cluster name based on the GPU type and number of GPUs.
+        Returns:
+            str: The cluster name. ex: "4xa100-40gb" or "local" if using fake MIG manager.
+        """
+        return f"{self.num_gpus}x{self.gpu_type}" if not config.use_fake_mig_manager \
+            else "local"  # When using the fake MIG manager, we have a single "local" cluster
 
 
 # Used to get jobs by user and IDs

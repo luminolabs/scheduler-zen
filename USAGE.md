@@ -76,12 +76,13 @@ curl -X POST http://localhost:6200/jobs -H "Content-Type: application/json" -d '
     "batch_size": 2,
     "shuffle": true,
     "num_epochs": 1,
-    "use_lora": true, 
-    "use_single_device": false,
-    "num_gpus": 2 
+    "use_lora": true,
+    "use_qlora": false,
+    "pytorch_cuda_alloc_conf": "expandable_segments:True"
   },
-  "keep_alive": false,
-  "cluster": "2xa100-40gb" 
+  "gpu_type": "a100-40gb" 
+  "num_gpus": 2,
+  "keep_alive": false
 }'
 ```
 

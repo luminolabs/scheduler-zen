@@ -79,8 +79,12 @@ class Scheduler:
         while self.running:
             new_jobs = await self.db.get_jobs_by_status(JOB_STATUS_NEW)
             for job in new_jobs:
-                # Add job_id to args for the training workflow to pick up
+                # Add job_id and num_gpus to args for the training workflow to pick up
+                # That's because the training workflow only picks up `args`; not the entire job object
                 job['args']['job_id'] = job['job_id']
+                #  `num_gpus` is only needed for the `torchtunewrapper` workflow
+                if job['workflow'] == 'torchtunewrapper':
+                    job['args']['num_gpus'] = job['cluster'].split('x')[0]  # Extract number of GPUs from cluster name
                 # Publish start signal to Pub/Sub
                 await self.pubsub.publish_start_signal('pipeline-zen-jobs-start', job)
                 # Update job status to PENDING in the database
@@ -118,7 +122,10 @@ class Scheduler:
                 return
 
             # Update job status and timestamp in the database
-            await self.db.update_job(job_id, new_status, vm_name, region)
+            # Don't update status if it's a `RUNNING` status, and the old status was also `RUNNING`
+            # because it's a heartbeat, and we want to maintain the original `RUNNING` time
+            if not (old_status == JOB_STATUS_RUNNING and new_status == JOB_STATUS_RUNNING):
+                await self.db.update_job(job_id, new_status, vm_name, region)
 
             # Don't log if status is the same, `RUNNING` status is received as a heartbeat
             if old_status != new_status:
