@@ -2,8 +2,8 @@ import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from typing import Dict, Any
+from pydantic import BaseModel, computed_field
+from typing import Dict, Any, List
 
 from app.config_manager import config
 from app.utils import setup_logger
@@ -18,13 +18,31 @@ from app.fake_mig_manager import FakeMigManager
 logger = setup_logger(__name__)
 
 
-# Define the JobRequest model, that will be used to create new jobs
-class JobRequest(BaseModel):
+# Used to create a new job
+class CreateJobRequest(BaseModel):
     job_id: str
     workflow: str
     args: Dict[str, Any]
-    keep_alive: bool
-    cluster: str
+    gpu_type: str  # ex: "a100-40gb"
+    num_gpus: int = 1
+    keep_alive: bool = False
+    user_id: str = "0"  # Default to 0 for internal jobs; the Customer API will set this to the user ID
+
+    @computed_field
+    def cluster(self) -> str:
+        """
+        Return the cluster name based on the GPU type and number of GPUs.
+        Returns:
+            str: The cluster name. ex: "4xa100-40gb" or "local" if using fake MIG manager.
+        """
+        return f"{self.num_gpus}x{self.gpu_type}" if not config.use_fake_mig_manager \
+            else "local"  # When using the fake MIG manager, we have a single "local" cluster
+
+
+# Used to get jobs by user and IDs
+class ListUserJobsRequest(BaseModel):
+    user_id: str
+    job_ids: List[str]
 
 
 def init_scheduler():
@@ -38,13 +56,13 @@ def init_scheduler():
     # The FakeMigManager simulates VMs and MIGs for testing
     if config.use_fake_mig_manager:
         logger.info("Using FakeMigManager for local environment")
-        mig_manager = FakeMigManager(config.gcp_project, config.heartbeat_topic, config.start_job_subscription)
+        mig_manager = FakeMigManager(config.gcp_project, config.heartbeat_topic, config.start_job_subscription, db)
     else:
         logger.info("Using real MigManager for non-local environment")
-        mig_manager = MigManager(config.gcp_project)
+        mig_manager = MigManager(config.gcp_project, db)
 
     # Initialize the cluster orchestrator with max scale limits
-    cluster_orchestrator = ClusterOrchestrator(config.gcp_project, cluster_config, mig_manager, config.max_scale_limits)
+    cluster_orchestrator = ClusterOrchestrator(config.gcp_project, cluster_config, mig_manager, config.max_scale_limits, db)
     return Scheduler(db, pubsub, cluster_orchestrator)
 
 
@@ -76,30 +94,32 @@ app = FastAPI(lifespan=lifespan)
 
 
 @app.post("/jobs")
-async def create_job(job: JobRequest):
+async def create_job(job: CreateJobRequest) -> Dict[str, Any]:
     """
     Create a new job.
 
     Args:
-        job (JobRequest): The job details.
+        job (CreateJobRequest): The job details.
 
     Returns:
         dict: A dictionary containing the job_id of the added job.
-
-    Raises:
-        HTTPException: If there's an error adding the job.
     """
-    try:
-        job_id = await scheduler.add_job(job.dict())
-        logger.info(f"Added new job with ID: {job_id}")
-        return {"job_id": job_id, "status": "new"}
-    except Exception as e:
-        logger.error(f"Error adding job: {str(e)}")
-        raise HTTPException(status_code=500, detail="Error adding job")
+    # Check if cluster exists
+    if not scheduler.cluster_orchestrator.cluster_exists(job.cluster):
+        raise HTTPException(status_code=422, detail=f"Cluster '{job.cluster}' does not exist")
+
+    # Check if job_id already exists
+    existing_job = await scheduler.db.get_job(job.job_id)
+    if existing_job:
+        raise HTTPException(status_code=422, detail=f"Job with ID '{job.job_id}' already exists")
+
+    job_id = await scheduler.add_job(job.dict())
+    logger.info(f"Added new job with ID: {job_id}")
+    return {"job_id": job_id, "status": "new"}
 
 
 @app.post("/jobs/{job_id}/stop")
-async def stop_job(job_id: str):
+async def stop_job(job_id: str) -> Dict[str, Any]:
     """
     Stop a running job.
 
@@ -108,9 +128,6 @@ async def stop_job(job_id: str):
 
     Returns:
         dict: A dictionary indicating the job was stopped.
-
-    Raises:
-        HTTPException: If the job is not found or not running.
     """
     success = await scheduler.stop_job(job_id)
     if not success:
@@ -121,20 +138,36 @@ async def stop_job(job_id: str):
 
 
 @app.get("/status")
-async def get_status():
+async def get_status() -> Dict[str, Any]:
     """
     Get the current status of the scheduler.
 
     Returns:
         dict: The current status of the scheduler.
     """
-    try:
-        status = await scheduler.get_status()
-        logger.info("Retrieved scheduler status")
-        return status
-    except Exception as e:
-        logger.error(f"Error retrieving scheduler status: {str(e)}")
-        raise HTTPException(status_code=500, detail="Error retrieving status")
+    status = await scheduler.get_status()
+    logger.info("Retrieved scheduler status")
+    return status
+
+
+@app.post("/jobs/get_by_user_and_ids")
+async def get_jobs_by_user_and_ids(request: ListUserJobsRequest) -> List[Dict[str, Any]]:
+    """
+    Get jobs for a specific user with the given job IDs.
+
+    This is primarily used by the Lumino API to refresh job details for a given user.
+    TODO: In the future, let's use webhooks to notify the Customer API of job updates.
+
+    Args:
+        request (ListUserJobsRequest): The request containing user_id and job_ids.
+
+    Returns:
+        list: A list of jobs.
+    """
+    jobs = await scheduler.db.get_jobs_by_user_and_ids(request.user_id, request.job_ids)
+    logger.info(f"Retrieved {len(jobs)} jobs for user {request.user_id}")
+    return jobs
+
 
 if __name__ == "__main__":
     import uvicorn

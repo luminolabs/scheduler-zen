@@ -1,0 +1,16 @@
+{
+  "output": {
+    "filePath": "scheduler-zen.txt",
+    "style": "plain",
+    "headerText": "Scheduler Zen",
+    "removeComments": false,
+    "removeEmptyLines": false,
+    "showLineNumbers": false,
+    "topFilesLength": 0
+  },
+  "include": ["**/*"],
+  "ignore": {
+    "useGitignore": true,
+    "useDefaultPatterns": true
+  }
+}

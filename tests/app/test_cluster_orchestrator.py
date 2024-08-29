@@ -57,9 +57,9 @@ def test_init(cluster_orchestrator):
 
 
 @pytest.mark.asyncio
-async def test_update_status(cluster_orchestrator):
+async def test_get_status(cluster_orchestrator):
     """
-    Test the update_status method.
+    Test the get_status method.
 
     Verifies that the method correctly aggregates status information
     from all cluster managers.
@@ -77,7 +77,7 @@ async def test_update_status(cluster_orchestrator):
         }
     )
 
-    status = await cluster_orchestrator.update_status()
+    status = await cluster_orchestrator.get_status()
 
     assert status == {
         "cluster1": {

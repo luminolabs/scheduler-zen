@@ -155,7 +155,7 @@ async def test_listen_for_heartbeats(scheduler):
 async def test_monitor_and_scale_clusters(scheduler):
     """Test the _monitor_and_scale_clusters method of Scheduler."""
     scheduler.running = True
-    scheduler.cluster_orchestrator.update_status.return_value = {"cluster1": {"region1": (5, 3)}}
+    scheduler.cluster_orchestrator.get_status.return_value = {"cluster1": {"region1": (5, 3)}}
     scheduler.db.get_jobs_by_status.side_effect = [
         [{"cluster": "cluster1"}],  # Pending jobs
         [{"cluster": "cluster1", "region": "region1"}]  # Running jobs
@@ -170,7 +170,7 @@ async def test_monitor_and_scale_clusters(scheduler):
         stop_after_one_iteration()
     )
 
-    scheduler.cluster_orchestrator.update_status.assert_called_once()
+    scheduler.cluster_orchestrator.get_status.assert_called_once()
     scheduler.cluster_orchestrator.scale_clusters.assert_called_once_with(
         {"cluster1": 1},
         {"cluster1": {"region1": 1}}

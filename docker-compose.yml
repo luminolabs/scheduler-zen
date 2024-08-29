@@ -9,6 +9,8 @@ services:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "35200:5432"
+    # Uncomment the following line to log all SQL statements (don't commit this to git)
+    # command: ["postgres", "-c", "log_statement=all"]
 
   api:
     build: .

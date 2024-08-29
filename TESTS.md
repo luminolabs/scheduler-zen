@@ -68,8 +68,8 @@ This document provides an overview of all test cases implemented in the Pipeline
     - Verifies correct initialization of ClusterOrchestrator
     - Checks if all attributes are set correctly
 
-2. **test_update_status**
-    - Tests the update_status method
+2. **test_get_status**
+    - Tests the get_status method
     - Ensures correct aggregation of status information from all cluster managers
 
 3. **test_scale_clusters**
