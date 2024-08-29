@@ -7,7 +7,8 @@ log_file: ./.logs/output.log
 gcp_project: neat-airport-407301
 heartbeat_topic: pipeline-zen-jobs-heartbeats
 heartbeat_subscription: pipeline-zen-jobs-heartbeats-scheduler
-mig_api_rate_limit: 10
+mig_api_rate_limit: 10 # requests per second for MIG API per region
+mig_recent_job_threshold: 5  # minutes to consider a job recent for MIG scaling
 
 # Database
 # Set these in your .env file when running on a local env
@@ -48,14 +49,14 @@ gpu_regions:
 # Available MIG clusters and their GPU types
 mig_clusters:
   # V100
-  1xv100: v100  # small jobs, such as CV training
-  4xv100: v100  # medium jobs, such as llama3 8b lora
-  8xv100: v100  # medium jobs, such as llama3 8b full
+  1xv100: v100
+  4xv100: v100
+  8xv100: v100
   # A100-40GB
-  1xa100-40gb: a100-40gb  # $ medium jobs, such as llama3 8b lora
-  2xa100-40gb: a100-40gb  # $$ medium jobs, such as llama3 8b full
-  4xa100-40gb: a100-40gb  # $$$ large jobs, such as llama3 70b lora
-  8xa100-40gb: a100-40gb  # $$$$ large jobs, such as llama3 70b full
+  1xa100-40gb: a100-40gb
+  2xa100-40gb: a100-40gb
+  4xa100-40gb: a100-40gb
+  8xa100-40gb: a100-40gb
   # A100-80GB - $$$$$$ don't use these unless you know what you're doing
   1xa100-80gb: a100-80gb
   2xa100-80gb: a100-80gb

@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 import asyncpg
 import json
 from typing import List, Dict, Any, Optional, Union
@@ -258,6 +260,33 @@ class Database:
 
             logger.info(f"Running jobs for cluster {cluster}, region {region}: {count}")
             return count
+
+    async def get_recent_running_jobs(self, cluster: str, region: str, within: timedelta) -> List[Dict[str, Any]]:
+        """
+        Get jobs that started running within the specified time period.
+
+        Args:
+            cluster (str): The cluster name.
+            region (str): The region name.
+            within (timedelta): The time period to check for recent jobs.
+
+        Returns:
+            List[Dict[str, Any]]: A list of recent running jobs.
+        """
+        async with self.pool.acquire() as conn:
+            query = """
+                SELECT * FROM jobs
+                WHERE cluster = $1
+                AND region = $2
+                AND status = 'RUNNING'
+                AND (
+                    SELECT running_timestamp 
+                    FROM job_status_timestamps 
+                    WHERE job_id = jobs.id
+                ) > NOW() - $3::interval
+            """
+            rows = await conn.fetch(query, cluster, region, within)
+            return [dict(row) for row in rows]
 
     @staticmethod
     def _generate_job_id() -> str:
