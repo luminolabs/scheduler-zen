@@ -11,6 +11,7 @@ use_fake_mig_manager: true
 start_job_subscription: pipeline-zen-jobs-start-local
 heartbeat_topic: pipeline-zen-jobs-heartbeats-local
 heartbeat_subscription: pipeline-zen-jobs-heartbeats-local-scheduler
+mig_recent_job_threshold: 0
 gpu_regions:
   local:
     - us-vasilis1
