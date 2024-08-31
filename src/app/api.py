@@ -12,7 +12,6 @@ from app.cluster_orchestrator import ClusterOrchestrator
 from app.database import Database
 from app.pubsub_client import PubSubClient
 from app.mig_client import MigClient
-from app.fake_mig_client import FakeMigClient
 
 # Set up logging
 logger = setup_logger(__name__)
@@ -56,7 +55,7 @@ def init_scheduler():
     # The FakeMigManager simulates VMs and MIGs for testing
     if config.use_fake_mig_client:
         logger.info("Using FakeMigManager for local environment")
-        mig_client = FakeMigClient(config.gcp_project, config.heartbeat_topic, config.start_job_subscription, db)
+        # TODO: Implement the FakeMigClient class
     else:
         logger.info("Using real MigManager for non-local environment")
         mig_client = MigClient(config.gcp_project)
