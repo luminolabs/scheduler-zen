@@ -10,7 +10,7 @@ from app.pubsub_client import PubSubClient
 from app.cluster_orchestrator import ClusterOrchestrator
 from app.utils import (
     JOB_STATUS_NEW,
-    JOB_STATUS_PENDING,
+    JOB_STATUS_WAITING,
     JOB_STATUS_RUNNING,
     JOB_STATUS_STOPPING
 )
@@ -117,7 +117,7 @@ async def test_schedule_jobs(scheduler):
 
     scheduler.db.get_jobs_by_status.assert_called_with(JOB_STATUS_NEW)
     scheduler.pubsub.publish_start_signal.assert_called_once_with('pipeline-zen-jobs-start', mock_jobs[0])
-    scheduler.db.update_job.assert_called_once_with("job1", JOB_STATUS_PENDING)
+    scheduler.db.update_job.assert_called_once_with("job1", JOB_STATUS_WAITING)
 
 
 @pytest.mark.asyncio
@@ -133,7 +133,7 @@ async def test_listen_for_heartbeats(scheduler):
     # Mock the get_job method to return a valid job
     scheduler.db.get_job.return_value = {
         "job_id": "job1",
-        "status": JOB_STATUS_PENDING
+        "status": JOB_STATUS_WAITING
     }
 
     async def mock_listen_for_heartbeats(subscription):
@@ -212,4 +212,4 @@ async def test_get_status(scheduler):
         'pending_jobs': 1
     }
     scheduler.db.get_jobs_by_status.assert_any_call(JOB_STATUS_RUNNING)
-    scheduler.db.get_jobs_by_status.assert_any_call(JOB_STATUS_PENDING)
+    scheduler.db.get_jobs_by_status.assert_any_call(JOB_STATUS_WAITING)

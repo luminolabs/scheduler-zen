@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from app.cluster_orchestrator import ClusterOrchestrator
-from app.mig_manager import MigManager
+from app.mig_client import MigClient
 
 
 @pytest.fixture
@@ -13,7 +13,7 @@ def mock_mig_manager():
     Returns:
         MagicMock: A mock object simulating MigManager behavior.
     """
-    return MagicMock(spec=MigManager)
+    return MagicMock(spec=MigClient)
 
 
 @pytest.fixture
@@ -38,7 +38,7 @@ def cluster_orchestrator(mock_mig_manager):
     return ClusterOrchestrator(
         project_id="test-project",
         cluster_configs=cluster_configs,
-        mig_manager=mock_mig_manager,
+        mig_client=mock_mig_manager,
         max_scale_limits=max_scale_limits
     )
 

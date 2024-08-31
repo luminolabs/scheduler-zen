@@ -5,14 +5,14 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 import json
 
-from app.fake_mig_manager import FakeMigManager
+from app.fake_mig_client import FakeMigClient
 from app.config_manager import config
 
 
 @pytest.fixture
 def fake_mig_manager():
     """Fixture to create a FakeMigManager instance for testing."""
-    return FakeMigManager("test-project", "test-heartbeat-topic", "test-start-job-subscription")
+    return FakeMigClient("test-project", "test-heartbeat-topic", "test-start-job-subscription")
 
 
 @pytest.mark.asyncio
@@ -61,13 +61,13 @@ async def test_scale_mig(fake_mig_manager):
     mig_name = "pipeline-zen-jobs-test-cluster-test-region"
 
     # Test scaling up
-    await fake_mig_manager.scale_mig(region, mig_name, 2)
+    await fake_mig_manager.set_target_size(region, mig_name, 2)
     assert region in fake_mig_manager.migs
     assert mig_name in fake_mig_manager.migs[region]
     assert len(fake_mig_manager.migs[region][mig_name]) == 2
 
     # Test scaling down
-    await fake_mig_manager.scale_mig(region, mig_name, 1)
+    await fake_mig_manager.set_target_size(region, mig_name, 1)
     assert len(fake_mig_manager.migs[region][mig_name]) == 1
 
 

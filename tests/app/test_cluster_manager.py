@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from app.cluster_manager import ClusterManager
-from app.mig_manager import MigManager
+from app.mig_client import MigClient
 
 
 @pytest.fixture
@@ -13,7 +13,7 @@ def mock_mig_manager():
     Returns:
         MagicMock: A mock object simulating MigManager behavior.
     """
-    return MagicMock(spec=MigManager)
+    return MagicMock(spec=MigClient)
 
 
 @pytest.fixture
@@ -31,7 +31,7 @@ def cluster_manager(mock_mig_manager):
         project_id="test-project",
         regions=["region1", "region2"],
         cluster="test-cluster",
-        mig_manager=mock_mig_manager,
+        mig_client=mock_mig_manager,
         max_scale_limit=10
     )
 
@@ -90,14 +90,14 @@ async def test_scale_region(cluster_manager, mock_mig_manager):
     and calls the MigManager to scale the MIG accordingly.
     """
     mock_mig_manager.get_target_and_running_vm_counts.return_value = (5, 3)
-    cluster_manager.mig_manager = mock_mig_manager
+    cluster_manager.mig_client = mock_mig_manager
 
     await cluster_manager._scale_region("region1", 4, 2)
 
     mock_mig_manager.get_target_and_running_vm_counts.assert_called_once_with(
         "region1", "pipeline-zen-jobs-test-cluster-region1"
     )
-    mock_mig_manager.scale_mig.assert_called_once_with(
+    mock_mig_manager.set_target_size.assert_called_once_with(
         "region1", "pipeline-zen-jobs-test-cluster-region1", 6
     )
 
@@ -114,7 +114,7 @@ async def test_get_status(cluster_manager, mock_mig_manager):
         (5, 3),
         (7, 6)
     ]
-    cluster_manager.mig_manager = mock_mig_manager
+    cluster_manager.mig_client = mock_mig_manager
 
     status = await cluster_manager.get_status()
 
