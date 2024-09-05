@@ -38,6 +38,10 @@ def is_new_job_status_valid(old_status: str, new_status: str) -> bool:
     Returns:
         bool: True if the new job status is valid, False otherwise
     """
+    # Don't go to `RUNNING` from `FOUND_VM`;
+    # the `FOUND_VM` status is what triggers the VM detachment, and we don't want to miss it
+    if new_status == JOB_STATUS_RUNNING and old_status == JOB_STATUS_FOUND_VM:
+        return False
     return HEARTBEAT_ORDERED_JOB_STATUSES.index(new_status) > HEARTBEAT_ORDERED_JOB_STATUSES.index(old_status)
 
 
