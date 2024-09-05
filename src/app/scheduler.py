@@ -102,6 +102,12 @@ class Scheduler:
         while self.running:
             new_jobs = await self.db.get_jobs_by_status(JOB_STATUS_NEW)
             for job in new_jobs:
+                # Add job_id and num_gpus to args for the training workflow to pick up
+                # That's because the training workflow only picks up `args`; not the entire job object
+                job['args']['job_id'] = job['job_id']
+                #  `num_gpus` is only needed for the `torchtunewrapper` workflow
+                if job['workflow'] == 'torchtunewrapper':
+                    job['args']['num_gpus'] = job['cluster'].split('x')[0]  # Extract number of GPUs from cluster name
                 # Update job status to WAIT_FOR_VM
                 await self.db.update_job(job['job_id'], JOB_STATUS_WAIT_FOR_VM)
                 # Publish start signal to Pub/Sub
