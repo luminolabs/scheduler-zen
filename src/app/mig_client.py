@@ -1,5 +1,4 @@
 import asyncio
-from imp import cache_from_source
 from typing import Optional
 
 from google.api_core.exceptions import NotFound
