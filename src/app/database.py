@@ -38,9 +38,11 @@ class Database:
         async with self.pool.acquire() as conn:
             await conn.execute('''
                 CREATE TABLE IF NOT EXISTS jobs (
-                    id TEXT PRIMARY KEY,
+                    id TEXT NOT NULL,
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    user_id VARCHAR DEFAULT '0' NOT NULL,
+                    notes TEXT,
                     workflow TEXT,
                     args JSONB,
                     keep_alive BOOLEAN,
@@ -48,13 +50,13 @@ class Database:
                     status TEXT,
                     vm_name TEXT,
                     region TEXT,
-                    user_id TEXT,
-                    notes TEXT
+                    CONSTRAINT jobs_pk PRIMARY KEY (id, user_id)
                 )
             ''')
             await conn.execute('''
                 CREATE TABLE IF NOT EXISTS job_status_timestamps (
                     job_id TEXT PRIMARY KEY,
+                    user_id VARCHAR DEFAULT '0' NOT NULL,
                     new_timestamp TIMESTAMP WITH TIME ZONE,
                     wait_for_vm_timestamp TIMESTAMP WITH TIME ZONE,
                     found_vm_timestamp TIMESTAMP WITH TIME ZONE,
@@ -63,10 +65,11 @@ class Database:
                     stopping_timestamp TIMESTAMP WITH TIME ZONE,
                     stopped_timestamp TIMESTAMP WITH TIME ZONE,
                     completed_timestamp TIMESTAMP WITH TIME ZONE,
-                    failed_timestamp TIMESTAMP WITH TIME ZONE
+                    failed_timestamp TIMESTAMP WITH TIME ZONE,
+                    CONSTRAINT jobs_pk PRIMARY KEY (id, user_id)
                 )
             ''')
-        logger.info("Database tables created")
+            logger.info("Database tables created")
 
     async def add_job(self, job_data: Dict[str, Any]) -> str:
         """
@@ -94,9 +97,9 @@ class Database:
                 ''', job_id, workflow, args, keep_alive, cluster, status, user_id)
 
                 await conn.execute('''
-                    INSERT INTO job_status_timestamps (job_id, new_timestamp)
-                    VALUES ($1, CURRENT_TIMESTAMP)
-                ''', job_id)
+                    INSERT INTO job_status_timestamps (job_id, new_timestamp, user_id)
+                    VALUES ($1, CURRENT_TIMESTAMP, $2)
+                ''', job_id, user_id)
 
         logger.info(f"Added job with id: {job_id}, workflow: {workflow}, cluster: {cluster}")
         return job_id
