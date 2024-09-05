@@ -1,19 +1,21 @@
 import asyncio
 import json
-from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from app.config_manager import config
+from app.mig_client import MigClient
 from app.utils import (
-    JOB_STATUS_RUNNING, JOB_STATUS_PENDING, JOB_STATUS_COMPLETED,
-    JOB_STATUS_FAILED, setup_logger, JOB_STATUS_NEW, get_region_from_vm_name, is_new_job_status_valid,
-    JOB_STATUS_STOPPING
+    JOB_STATUS_NEW,
+    JOB_STATUS_WAIT_FOR_VM, JOB_STATUS_FOUND_VM, JOB_STATUS_DETACHED_VM,
+    JOB_STATUS_RUNNING, JOB_STATUS_STOPPING,
+    setup_logger, get_region_from_vm_name, is_new_job_status_valid, JOB_STATUS_STOPPED
 )
 from app.database import Database
 from app.pubsub_client import PubSubClient
 from app.cluster_orchestrator import ClusterOrchestrator
 
 logger = setup_logger(__name__)
+
 
 class Scheduler:
     """Manages the scheduling of jobs in the system."""
@@ -22,7 +24,8 @@ class Scheduler:
             self,
             db: Database,
             pubsub: PubSubClient,
-            cluster_orchestrator: ClusterOrchestrator
+            cluster_orchestrator: ClusterOrchestrator,
+            mig_client: MigClient
     ) -> None:
         """
         Initialize the Scheduler.
@@ -31,10 +34,12 @@ class Scheduler:
             db (Database): The database instance for job tracking.
             pubsub (PubSubClient): The PubSub client for messaging.
             cluster_orchestrator (ClusterOrchestrator): The cluster orchestrator.
+            mig_client (MigClient): The MIG client for managing MIGs.
         """
         self.db = db
         self.pubsub = pubsub
         self.cluster_orchestrator = cluster_orchestrator
+        self.mig_client = mig_client
         self.running = False
         logger.info("Scheduler initialized")
 
@@ -47,7 +52,8 @@ class Scheduler:
         await asyncio.gather(
             self._schedule_jobs(),
             self._listen_for_heartbeats(),
-            self._monitor_and_scale_clusters()
+            self._monitor_and_scale_clusters(),
+            self._monitor_and_detach_vms()
         )
 
     async def stop(self) -> None:
@@ -68,10 +74,27 @@ class Scheduler:
         """
         job_id = await self.db.add_job(job_data)
         # Log the activity
-        activity_description = f"Added new job with ID: {job_id}; status: {JOB_STATUS_NEW}"
-        await self.db.log_activity(activity_description)
-        logger.info(activity_description)
+        logger.info(f"Added new job with ID: {job_id}; status: {JOB_STATUS_NEW}")
         return job_id
+
+    async def stop_job(self, job_id: str) -> bool:
+        """
+        Stop a running job.
+
+        Args:
+            job_id (str): The ID of the job to stop.
+
+        Returns:
+            bool: True if the job was stopped, False otherwise.
+        """
+        job = await self.db.get_job(job_id)
+        if job and job['status'] == JOB_STATUS_RUNNING:
+            await self.pubsub.publish_stop_signal('pipeline-zen-jobs-stop', job_id)
+            await self.db.update_job(job_id, JOB_STATUS_STOPPING)
+            logger.info(f"Stopped job id: {job_id}")
+            return True
+        logger.warning(f"Job id: {job_id} not running or does not exist")
+        return False
 
     async def _schedule_jobs(self) -> None:
         """Schedule new jobs and update their status."""
@@ -85,15 +108,39 @@ class Scheduler:
                 #  `num_gpus` is only needed for the `torchtunewrapper` workflow
                 if job['workflow'] == 'torchtunewrapper':
                     job['args']['num_gpus'] = job['cluster'].split('x')[0]  # Extract number of GPUs from cluster name
+                # Update job status to WAIT_FOR_VM
+                await self.db.update_job(job['job_id'], JOB_STATUS_WAIT_FOR_VM)
                 # Publish start signal to Pub/Sub
                 await self.pubsub.publish_start_signal('pipeline-zen-jobs-start', job)
-                # Update job status to PENDING in the database
-                await self.db.update_job(job['job_id'], JOB_STATUS_PENDING)
                 # Log the activity
-                activity_description = f"Job '{job['job_id']}' status changed from {JOB_STATUS_NEW} to {JOB_STATUS_PENDING}"
-                await self.db.log_activity(activity_description)
-                logger.info(activity_description)
-            await asyncio.sleep(5)
+                logger.info(f"Job '{job['job_id']}' status changed from {JOB_STATUS_NEW} to {JOB_STATUS_WAIT_FOR_VM}")
+            await asyncio.sleep(10)
+
+    async def _monitor_and_scale_clusters(self) -> None:
+        """Monitor cluster status and scale as necessary."""
+        logger.info("Starting cluster monitoring and scaling")
+        while self.running:
+            # Scale clusters
+            logger.info("_monitor_and_scale_clusters: start")
+            await self.cluster_orchestrator.scale_clusters()
+            logger.info("_monitor_and_scale_clusters: end")
+            await asyncio.sleep(17)
+
+    async def _monitor_and_detach_vms(self):
+        """Monitor VMs that started running and detach them from the MIG."""
+        logger.info("Starting VM monitoring and detaching")
+        while self.running:
+            # Get a list of VMs to detach
+            jobs = await self.db.get_jobs_by_status(JOB_STATUS_FOUND_VM)
+            # Detach VMs in parallel and update their status in the database
+            logger.info("_monitor_and_detach_vms: start")
+            logger.info(f"Detaching VMs: "
+                        f"{[job['vm_name'] for job in jobs]} for jobs:"
+                        f" {[job['job_id'] for job in jobs]}")
+            await asyncio.gather(*[self.mig_client.detach_vm(job['vm_name'], job['job_id']) for job in jobs])
+            await asyncio.gather(*[self.db.update_job(job['job_id'], JOB_STATUS_DETACHED_VM) for job in jobs])
+            logger.info('_monitor_and_detach_vms: end')
+            await asyncio.sleep(7)
 
     async def _listen_for_heartbeats(self) -> None:
         """Listen for job heartbeats to update their status."""
@@ -121,122 +168,13 @@ class Scheduler:
             if not is_new_job_status_valid(old_status, new_status):
                 return
 
-            # Update job status and timestamp in the database
-            # Don't update status if it's a `RUNNING` status, and the old status was also `RUNNING`
-            # because it's a heartbeat, and we want to maintain the original `RUNNING` time
-            if not (old_status == JOB_STATUS_RUNNING and new_status == JOB_STATUS_RUNNING):
-                await self.db.update_job(job_id, new_status, vm_name, region)
+            # If new status is `STOPPED`, then update the MIG client cache
+            if new_status == JOB_STATUS_STOPPED:
+                self.mig_client.remove_vm_from_cache(region, vm_name)
 
-            # Don't log if status is the same, `RUNNING` status is received as a heartbeat
-            if old_status != new_status:
-                activity_description = f"Job '{job_id}' status changed from {old_status} to {new_status}; region: {region}; VM name: {vm_name}"
-                await self.db.log_activity(activity_description)
-                logger.info(activity_description)
+            # Update job status and timestamp in the database
+            await self.db.update_job(job_id, new_status, vm_name, region)
+            logger.info(f"Job '{job_id}' status changed from {old_status} to {new_status}; region: {region}; VM name: {vm_name}")
 
         self.pubsub.heartbeat_callback = heartbeat_callback
         await self.pubsub.listen_for_heartbeats(config.heartbeat_subscription)
-
-    async def _monitor_and_scale_clusters(self) -> None:
-        """Monitor cluster status and scale as necessary."""
-        logger.info("Starting cluster monitoring and scaling")
-        while self.running:
-            # Get information needed for scaling
-            pending_job_counts = await self._get_pending_jobs_by_cluster()
-            running_job_counts = await self._get_running_jobs_by_cluster_and_region()
-            # Scale clusters
-            await self.cluster_orchestrator.scale_clusters(pending_job_counts, running_job_counts)
-            await asyncio.sleep(10)
-
-    async def _get_pending_jobs_by_cluster(self) -> Dict[str, int]:
-        """
-        Get the count of pending jobs for each cluster.
-
-        ex. {'cluster1': 2, 'cluster2': 1}
-
-        Returns:
-            Dict[str, int]: A dictionary mapping cluster names to pending job counts.
-        """
-        pending_jobs = await self.db.get_jobs_by_status(JOB_STATUS_PENDING)
-        mapping = {}
-        for job in pending_jobs:
-            cluster = job['cluster']
-            mapping[cluster] = mapping.get(cluster, 0) + 1
-        return mapping
-
-    async def _get_running_jobs_by_cluster_and_region(self) -> Dict[str, Dict[str, int]]:
-        """
-        Get the count of running jobs for each cluster and region.
-        ex. {'cluster1': {'region1': 2, 'region2': 1}, 'cluster2': {'region1': 1}}
-        Returns:
-            Dict[str, Dict[str, int]]: A dictionary mapping cluster names to dictionaries of
-             region to running job counts.
-        """
-        running_jobs = await self.db.get_jobs_by_status(JOB_STATUS_RUNNING)
-        mapping = {}
-        for job in running_jobs:
-            cluster = job['cluster']
-            region = job['region']
-            mapping.setdefault(cluster, {}).setdefault(region, 0)
-            mapping[cluster][region] += 1
-        return mapping
-
-    async def stop_job(self, job_id: str) -> bool:
-        """
-        Stop a running job.
-
-        Args:
-            job_id (str): The ID of the job to stop.
-
-        Returns:
-            bool: True if the job was stopped, False otherwise.
-        """
-        job = await self.db.get_job(job_id)
-        if job and job['status'] == JOB_STATUS_RUNNING:
-            await self.pubsub.publish_stop_signal('pipeline-zen-jobs-stop', job_id)
-            await self.db.update_job(job_id, JOB_STATUS_STOPPING)
-            logger.info(f"Stopped job id: {job_id}")
-            return True
-        logger.warning(f"Job id: {job_id} not running or does not exist")
-        return False
-
-    async def get_status(self) -> Dict[str, Any]:
-        """
-        Get the status of the scheduler, including cluster and job statuses.
-
-        Returns:
-            Dict[str, Any]: A dictionary with the scheduler status.
-        """
-        status = await self.cluster_orchestrator.get_status()
-
-        # Add completed and failed job counts
-        completed_jobs = await self.db.get_jobs_by_status(JOB_STATUS_COMPLETED)
-        failed_jobs = await self.db.get_jobs_by_status(JOB_STATUS_FAILED)
-        status["overall_summary"]["completed_jobs"] = len(completed_jobs)
-        status["overall_summary"]["failed_jobs"] = len(failed_jobs)
-        status["overall_summary"]["total_jobs"] += len(completed_jobs) + len(failed_jobs)
-
-        # Add timestamp
-        status["timestamp"] = datetime.utcnow().isoformat() + "Z"
-
-        # Add recent activities
-        status["recent_activities"] = await self.get_recent_activities()
-
-        logger.info(f"Scheduler status: {status}")
-        return status
-
-    async def get_recent_activities(self) -> List[Dict[str, str]]:
-        """
-        Get recent activities from the system.
-
-        Returns:
-            List[Dict[str, str]]: A list of recent activities.
-        """
-        activities = await self.db.get_recent_activities(limit=10)
-
-        return [
-            {
-                "timestamp": activity["timestamp"].isoformat() + "Z",
-                "activity": activity["description"]
-            }
-            for activity in activities
-        ]

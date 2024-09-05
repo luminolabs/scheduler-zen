@@ -11,7 +11,9 @@ INSTANCE_STATUS_RUNNING = 'RUNNING'
 
 # Job status constants
 JOB_STATUS_NEW = 'NEW'
-JOB_STATUS_PENDING = 'PENDING'
+JOB_STATUS_WAIT_FOR_VM = 'WAIT_FOR_VM'
+JOB_STATUS_FOUND_VM = 'FOUND_VM'
+JOB_STATUS_DETACHED_VM = 'DETACHED_VM'
 JOB_STATUS_RUNNING = 'RUNNING'
 JOB_STATUS_STOPPING = 'STOPPING'
 JOB_STATUS_STOPPED = 'STOPPED'
@@ -19,7 +21,9 @@ JOB_STATUS_COMPLETED = 'COMPLETED'
 JOB_STATUS_FAILED = 'FAILED'
 
 # Ordered list of job statuses
-HEARTBEAT_ORDERED_JOB_STATUSES = [JOB_STATUS_NEW, JOB_STATUS_PENDING, JOB_STATUS_RUNNING,
+HEARTBEAT_ORDERED_JOB_STATUSES = [JOB_STATUS_NEW,
+                                  JOB_STATUS_WAIT_FOR_VM, JOB_STATUS_FOUND_VM, JOB_STATUS_DETACHED_VM,
+                                  JOB_STATUS_RUNNING,
                                   JOB_STATUS_STOPPING, JOB_STATUS_STOPPED,
                                   JOB_STATUS_COMPLETED, JOB_STATUS_FAILED]
 
@@ -34,7 +38,11 @@ def is_new_job_status_valid(old_status: str, new_status: str) -> bool:
     Returns:
         bool: True if the new job status is valid, False otherwise
     """
-    return HEARTBEAT_ORDERED_JOB_STATUSES.index(new_status) >= HEARTBEAT_ORDERED_JOB_STATUSES.index(old_status)
+    # Don't go to `RUNNING` from `FOUND_VM`;
+    # the `FOUND_VM` status is what triggers the VM detachment, and we don't want to miss it
+    if new_status == JOB_STATUS_RUNNING and old_status == JOB_STATUS_FOUND_VM:
+        return False
+    return HEARTBEAT_ORDERED_JOB_STATUSES.index(new_status) > HEARTBEAT_ORDERED_JOB_STATUSES.index(old_status)
 
 
 def get_region_from_vm_name(vm_name: Optional[str]) -> Optional[str]:
@@ -48,6 +56,33 @@ def get_region_from_vm_name(vm_name: Optional[str]) -> Optional[str]:
         str: The region of the VM.
     """
     return '-'.join(vm_name.split('-')[-3:-1]) if vm_name else None
+
+
+def get_mig_name_from_vm_name(vm_name: Optional[str]) -> Optional[str]:
+    """
+    Get the MIG name from a VM name.
+
+    Args:
+        vm_name (str): The name of the VM.
+
+    Returns:
+        str: The MIG name of the VM.
+    """
+    return '-'.join(vm_name.split('-')[:-1]) if vm_name else None
+
+
+def get_mig_name_from_cluster_and_region(cluster: str, region: str) -> str:
+    """
+    Get the MIG name from a cluster and region.
+
+    Args:
+        cluster (str): The name of the cluster.
+        region (str): The region of the MIG.
+
+    Returns:
+        str: The MIG name of the cluster and region.
+    """
+    return f"pipeline-zen-jobs-{cluster}-{region}"
 
 
 def setup_logger(name: str,
