@@ -1,4 +1,5 @@
 import asyncio
+from imp import cache_from_source
 from typing import Optional
 
 from google.api_core.exceptions import NotFound
@@ -26,9 +27,22 @@ class MigClient:
         self.client = compute_v1.RegionInstanceGroupManagersClient()
         self.instances_client = compute_v1.InstancesClient()
         self.semaphore = asyncio.Semaphore(config.mig_api_rate_limit)
+        self.instance_zone_cache = {}  # Cache for instance zone lookups
         logger.info(f"MigClient initialized with project_id: {project_id}")
 
-    def get_instance_zone(self, region: str, vm_name: str) -> Optional[str]:
+    def remove_vm_from_cache(self, region: str, vm_name: str) -> None:
+        """
+        Remove a VM instance from the zone cache.
+
+        Args:
+            region (str): The region of the VM.
+            vm_name (str): The name of the VM instance.
+        """
+        cache_key = f'{region}/{vm_name}'
+        if cache_key in self.instance_zone_cache:
+            del self.instance_zone_cache[cache_key]
+
+    async def get_instance_zone(self, region: str, vm_name: str) -> Optional[str]:
         """
         Get the zone of a VM instance.
 
@@ -38,16 +52,23 @@ class MigClient:
         Returns:
             str: The zone of the VM instance if found, None otherwise.
         """
-        request = compute_v1.AggregatedListInstancesRequest(
-            project=self.project_id,
-            filter=f'name={vm_name}'
-        )
-        for zone, response in self.instances_client.aggregated_list(request=request):
-            if response.instances:
-                for instance in response.instances:
-                    if instance.name == vm_name and zone.startswith(f'zones/{region}'):
-                        return zone.split('/')[-1]
-        return None
+        cache_key = f'{region}/{vm_name}'
+        if cache_key in self.instance_zone_cache:
+            return self.instance_zone_cache[cache_key]
+        async with self.semaphore:
+            request = compute_v1.AggregatedListInstancesRequest(
+                project=self.project_id,
+                filter=f'name={vm_name}'
+            )
+            aggregated_list = await asyncio.to_thread(self.instances_client.aggregated_list, request)
+            for zone, response in aggregated_list:
+                if response.instances:
+                    for instance in response.instances:
+                        if instance.name == vm_name and zone.startswith(f'zones/{region}'):
+                            zone_name = zone.split('/')[-1]
+                            self.instance_zone_cache[cache_key] = zone_name
+                            return zone_name
+            return None
 
     @retry_async.AsyncRetry()
     async def set_target_size(self, region: str, mig_name: str, target_size: int) -> None:
@@ -113,7 +134,7 @@ class MigClient:
             # Get the MIG name and region from the VM name
             mig_name = get_mig_name_from_vm_name(vm_name)
             region = get_region_from_vm_name(vm_name)
-            zone = self.get_instance_zone(region, vm_name)
+            zone = await self.get_instance_zone(region, vm_name)
             # Create the request to detach the instance from the regional MIG
             request = compute_v1.AbandonInstancesRegionInstanceGroupManagerRequest(
                 project=self.project_id,

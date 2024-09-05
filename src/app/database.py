@@ -117,11 +117,20 @@ class Database:
         """
         async with self.pool.acquire() as conn:
             async with conn.transaction():
-                await conn.execute('''
+                args = [status]
+                sql = """
                     UPDATE jobs
-                    SET status = $1, vm_name = $2, region = $3, updated_at = CURRENT_TIMESTAMP
-                    WHERE id = $4
-                ''', status, vm_name, region, job_id)
+                    SET status = $1, updated_at = CURRENT_TIMESTAMP
+                """
+                if vm_name:
+                    args.append(vm_name)
+                    sql += f', vm_name = ${len(args)}'
+                if region:
+                    args.append(region)
+                    sql += f', region = ${len(args)}'
+                args.append(job_id)
+                sql += f' WHERE id = ${len(args)}'
+                await conn.execute(sql, *args)
 
                 status_column = f"{status.lower()}_timestamp"
                 await conn.execute(f'''

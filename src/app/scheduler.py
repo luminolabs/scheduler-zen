@@ -8,7 +8,7 @@ from app.utils import (
     JOB_STATUS_NEW,
     JOB_STATUS_WAIT_FOR_VM, JOB_STATUS_FOUND_VM, JOB_STATUS_DETACHED_VM,
     JOB_STATUS_RUNNING, JOB_STATUS_STOPPING,
-    setup_logger, get_region_from_vm_name, is_new_job_status_valid
+    setup_logger, get_region_from_vm_name, is_new_job_status_valid, JOB_STATUS_STOPPED
 )
 from app.database import Database
 from app.pubsub_client import PubSubClient
@@ -122,7 +122,7 @@ class Scheduler:
         while self.running:
             # Scale clusters
             await self.cluster_orchestrator.scale_clusters()
-            await asyncio.sleep(10)
+            await asyncio.sleep(17)
 
     async def _monitor_and_detach_vms(self):
         """Monitor VMs that started running and detach them from the MIG."""
@@ -136,7 +136,7 @@ class Scheduler:
                         f" {[job['job_id'] for job in jobs]}")
             await asyncio.gather(*[self.mig_client.detach_vm(job['vm_name'], job['job_id']) for job in jobs])
             await asyncio.gather(*[self.db.update_job(job['job_id'], JOB_STATUS_DETACHED_VM) for job in jobs])
-            await asyncio.sleep(10)
+            await asyncio.sleep(7)
 
     async def _listen_for_heartbeats(self) -> None:
         """Listen for job heartbeats to update their status."""
@@ -163,6 +163,10 @@ class Scheduler:
             old_status = job['status']
             if not is_new_job_status_valid(old_status, new_status):
                 return
+
+            # If new status is `STOPPED`, then update the MIG client cache
+            if new_status == JOB_STATUS_STOPPED:
+                self.mig_client.remove_vm_from_cache(region, vm_name)
 
             # Update job status and timestamp in the database
             await self.db.update_job(job_id, new_status, vm_name, region)
