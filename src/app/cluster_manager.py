@@ -48,7 +48,7 @@ class ClusterManager:
         Scale all regions based on pending jobs.
         """
         # Get the total number of pending jobs for the cluster
-        pending_jobs_count = len(await self.db.get_jobs_by_status(JOB_STATUS_WAIT_FOR_VM))
+        pending_jobs_count = len(await self.db.get_jobs_by_status(JOB_STATUS_WAIT_FOR_VM, self.cluster))
         # Scale all regions in parallel
         logger.info(f"Cluster: {self.cluster}: Scaling all regions: Pending jobs count: {pending_jobs_count}")
         tasks = []
