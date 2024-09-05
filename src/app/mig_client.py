@@ -101,12 +101,13 @@ class MigClient:
                 return 0
 
     @retry_async.AsyncRetry()
-    async def detach_vm(self, vm_name: str) -> None:
+    async def detach_vm(self, vm_name: str, job_id: str) -> None:
         """
         Detach a VM from its regional MIG.
 
         Args:
             vm_name (str): The name of the VM to detach.
+            job_id (str): The ID of the job associated with the VM.
         """
         async with self.semaphore:
             # Get the MIG name and region from the VM name
@@ -123,6 +124,7 @@ class MigClient:
                 )
             )
             # Execute the request
+            logger.info(f"MIG {mig_name}: detaching VM {vm_name} for job {job_id}")
             operation = await asyncio.to_thread(self.client.abandon_instances, request)
             await asyncio.to_thread(operation.result)
-            logger.info(f"MIG {mig_name}: detached VM {vm_name}")
+            logger.info(f"MIG {mig_name}: detached VM {vm_name} for job {job_id}")

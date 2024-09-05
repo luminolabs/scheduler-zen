@@ -131,7 +131,10 @@ class Scheduler:
             # Get a list of VMs to detach
             jobs = await self.db.get_jobs_by_status(JOB_STATUS_FOUND_VM)
             # Detach VMs in parallel and update their status in the database
-            await asyncio.gather(*[self.mig_client.detach_vm(job['vm_name']) for job in jobs])
+            logger.info(f"Detaching VMs: "
+                        f"{[job['vm_name'] for job in jobs]} for jobs:"
+                        f" {[job['job_id'] for job in jobs]}")
+            await asyncio.gather(*[self.mig_client.detach_vm(job['vm_name'], job['job_id']) for job in jobs])
             await asyncio.gather(*[self.db.update_job(job['job_id'], JOB_STATUS_DETACHED_VM) for job in jobs])
             await asyncio.sleep(10)
 
