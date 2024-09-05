@@ -58,6 +58,7 @@ class Database:
                     new_timestamp TIMESTAMP WITH TIME ZONE,
                     wait_for_vm_timestamp TIMESTAMP WITH TIME ZONE,
                     found_vm_timestamp TIMESTAMP WITH TIME ZONE,
+                    detached_vm_timestamp TIMESTAMP WITH TIME ZONE,
                     running_timestamp TIMESTAMP WITH TIME ZONE,
                     stopping_timestamp TIMESTAMP WITH TIME ZONE,
                     stopped_timestamp TIMESTAMP WITH TIME ZONE,
@@ -162,14 +163,14 @@ class Database:
         sql = 'SELECT * FROM jobs WHERE status = ANY($1)'
         args = [statuses]
         if cluster:
-            sql += f' AND cluster = ${len(args) + 1}'
             args.append(cluster)
+            sql += f' AND cluster = ${len(args)}'
         if region:
-            sql += f' AND region = ${len(args) + 1}'
             args.append(region)
+            sql += f' AND region = ${len(args)}'
 
         async with self.pool.acquire() as conn:
-            rows = await conn.fetch(sql, args)
+            rows = await conn.fetch(sql, *args)
             jobs = [self._row_to_dict(row) for row in rows]
         logger.info(f"Retrieved {len(jobs)} jobs with status: {statuses}, cluster: {cluster}, region: {region}")
         return jobs

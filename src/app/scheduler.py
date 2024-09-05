@@ -5,9 +5,10 @@ from typing import Any, Dict
 from app.config_manager import config
 from app.mig_client import MigClient
 from app.utils import (
-    JOB_STATUS_NEW, JOB_STATUS_WAIT_FOR_VM, JOB_STATUS_FOUND_VM,
-    JOB_STATUS_RUNNING, JOB_STATUS_STOPPING, setup_logger,
-    get_region_from_vm_name, is_new_job_status_valid
+    JOB_STATUS_NEW,
+    JOB_STATUS_WAIT_FOR_VM, JOB_STATUS_FOUND_VM, JOB_STATUS_DETACHED_VM,
+    JOB_STATUS_RUNNING, JOB_STATUS_STOPPING,
+    setup_logger, get_region_from_vm_name, is_new_job_status_valid
 )
 from app.database import Database
 from app.pubsub_client import PubSubClient
@@ -51,7 +52,8 @@ class Scheduler:
         await asyncio.gather(
             self._schedule_jobs(),
             self._listen_for_heartbeats(),
-            self._monitor_and_scale_clusters()
+            self._monitor_and_scale_clusters(),
+            self._monitor_and_detach_vms()
         )
 
     async def stop(self) -> None:
@@ -121,9 +123,11 @@ class Scheduler:
         logger.info("Starting VM monitoring and detaching")
         while self.running:
             # Get a list of VMs to detach
-            vms_to_detach = await self.db.get_jobs_by_status(JOB_STATUS_FOUND_VM)
-            # Detach VMs in parallel
-            await asyncio.gather(*[self.mig_client.detach_vm(vm) for vm in vms_to_detach])
+            jobs = await self.db.get_jobs_by_status(JOB_STATUS_FOUND_VM)
+            # Detach VMs in parallel and update their status in the database
+            await asyncio.gather(*[self.mig_client.detach_vm(job['vm_name']) for job in jobs])
+            await asyncio.gather(*[self.db.update_job(job['job_id'], JOB_STATUS_DETACHED_VM) for job in jobs])
+            await asyncio.sleep(10)
 
     async def _listen_for_heartbeats(self) -> None:
         """Listen for job heartbeats to update their status."""

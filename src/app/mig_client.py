@@ -1,4 +1,5 @@
 import asyncio
+from typing import Optional
 
 from google.api_core.exceptions import NotFound
 from google.cloud import compute_v1
@@ -26,6 +27,27 @@ class MigClient:
         self.instances_client = compute_v1.InstancesClient()
         self.semaphore = asyncio.Semaphore(config.mig_api_rate_limit)
         logger.info(f"MigClient initialized with project_id: {project_id}")
+
+    def get_instance_zone(self, region: str, vm_name: str) -> Optional[str]:
+        """
+        Get the zone of a VM instance.
+
+        Args:
+            region (str): The region of the VM.
+            vm_name (str): The name of the VM instance.
+        Returns:
+            str: The zone of the VM instance if found, None otherwise.
+        """
+        request = compute_v1.AggregatedListInstancesRequest(
+            project=self.project_id,
+            filter=f'name={vm_name}'
+        )
+        for zone, response in self.instances_client.aggregated_list(request=request):
+            if response.instances:
+                for instance in response.instances:
+                    if instance.name == vm_name and zone.startswith(f'zones/{region}'):
+                        return zone.split('/')[-1]
+        return None
 
     @retry_async.AsyncRetry()
     async def set_target_size(self, region: str, mig_name: str, target_size: int) -> None:
@@ -90,13 +112,14 @@ class MigClient:
             # Get the MIG name and region from the VM name
             mig_name = get_mig_name_from_vm_name(vm_name)
             region = get_region_from_vm_name(vm_name)
+            zone = self.get_instance_zone(region, vm_name)
             # Create the request to detach the instance from the regional MIG
             request = compute_v1.AbandonInstancesRegionInstanceGroupManagerRequest(
                 project=self.project_id,
                 region=region,
                 instance_group_manager=mig_name,
                 region_instance_group_managers_abandon_instances_request_resource=compute_v1.RegionInstanceGroupManagersAbandonInstancesRequest(
-                    instances=[vm_name]
+                    instances=[f"zones/{zone}/instances/{vm_name}"]
                 )
             )
             # Execute the request

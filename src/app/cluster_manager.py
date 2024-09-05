@@ -74,7 +74,7 @@ class ClusterManager:
             # Scale down is not allowed when we are in the process of detaching VMs;
             # `FOUND_VM` status indicates that the VM is being detached
             # We do this so that we don't scale down while a VM is running a job
-            can_scale_down = (await self.db.get_jobs_by_status(JOB_STATUS_FOUND_VM, self.cluster, region)) == 0
+            can_scale_down = len(await self.db.get_jobs_by_status(JOB_STATUS_FOUND_VM, self.cluster, region)) == 0
             # Scale the MIG if needed:
             # - If new target size is greater than current target size
             # - If new target size is less than current target size and scaling down is allowed

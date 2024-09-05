@@ -20,7 +20,7 @@ db_host:
 db_port:
 
 # Fake services
-use_fake_mig_manager: false
+use_fake_mig_client: false
 
 # Available GPU types and their supported regions
 gpu_regions:
