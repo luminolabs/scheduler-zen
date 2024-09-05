@@ -52,9 +52,12 @@ class MigClient:
         Returns:
             str: The zone of the VM instance if found, None otherwise.
         """
+        logger.info(f"Getting zone for VM {vm_name} in region {region}")
         cache_key = f'{region}/{vm_name}'
         if cache_key in self.instance_zone_cache:
-            return self.instance_zone_cache[cache_key]
+            zone_name = self.instance_zone_cache[cache_key]
+            logger.info(f"Cache hit zone {zone_name} for VM {vm_name} in region {region}")
+            return zone_name
         async with self.semaphore:
             request = compute_v1.AggregatedListInstancesRequest(
                 project=self.project_id,
@@ -67,7 +70,9 @@ class MigClient:
                         if instance.name == vm_name and zone.startswith(f'zones/{region}'):
                             zone_name = zone.split('/')[-1]
                             self.instance_zone_cache[cache_key] = zone_name
+                            logger.info(f"Found zone {zone_name} for VM {vm_name} in region {region}")
                             return zone_name
+            logger.warning(f"Zone not found for VM {vm_name} in region {region}")
             return None
 
     @retry_async.AsyncRetry()

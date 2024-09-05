@@ -121,7 +121,9 @@ class Scheduler:
         logger.info("Starting cluster monitoring and scaling")
         while self.running:
             # Scale clusters
+            logger.info("_monitor_and_scale_clusters: start")
             await self.cluster_orchestrator.scale_clusters()
+            logger.info("_monitor_and_scale_clusters: end")
             await asyncio.sleep(17)
 
     async def _monitor_and_detach_vms(self):
@@ -131,11 +133,13 @@ class Scheduler:
             # Get a list of VMs to detach
             jobs = await self.db.get_jobs_by_status(JOB_STATUS_FOUND_VM)
             # Detach VMs in parallel and update their status in the database
+            logger.info("_monitor_and_detach_vms: start")
             logger.info(f"Detaching VMs: "
                         f"{[job['vm_name'] for job in jobs]} for jobs:"
                         f" {[job['job_id'] for job in jobs]}")
             await asyncio.gather(*[self.mig_client.detach_vm(job['vm_name'], job['job_id']) for job in jobs])
             await asyncio.gather(*[self.db.update_job(job['job_id'], JOB_STATUS_DETACHED_VM) for job in jobs])
+            logger.info('_monitor_and_detach_vms: end')
             await asyncio.sleep(7)
 
     async def _listen_for_heartbeats(self) -> None:
