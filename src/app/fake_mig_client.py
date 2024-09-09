@@ -4,7 +4,14 @@ from app.utils import setup_logger, get_mig_name_from_cluster_and_region
 logger = setup_logger(__name__)
 
 class FakeMigClient:
-    """Simulates the behavior of MigClient for local development."""
+    """
+    Simulates the behavior of MigClient for local development.
+    NOTE:
+        This is still a work in progress and will be expanded upon in future iterations.
+        Currently, it only simulates setting target sizes for MIGs and creating/deleting VMs,
+        but we need to add more functionality to fully simulate the behavior of the VMs and MIGs on GCP,
+        such as emitting job heartbeats, consuming Pub/Sub messages, and handling VM detachments.
+    """
 
     def __init__(self):
         self.migs: Dict[str, Dict[str, int]] = {}  # {region: {mig_name: target_size}}
