@@ -3,6 +3,7 @@ from typing import Dict, List, Union
 from app.utils import setup_logger
 from app.cluster_manager import ClusterManager
 from app.mig_client import MigClient
+from app.fake_mig_client import FakeMigClient
 from app.database import Database
 
 logger = setup_logger(__name__)
@@ -14,7 +15,7 @@ class ClusterOrchestrator:
             self,
             project_id: str,
             cluster_configs: Dict[str, List[str]],
-            mig_client: Union[MigClient, 'FakeMigClient'],
+            mig_client: Union[MigClient, FakeMigClient],
             max_scale_limits: Dict[str, int],
             db: Database
     ):
@@ -43,6 +44,12 @@ class ClusterOrchestrator:
         }
         logger.info(f"ClusterOrchestrator initialized with project_id: {project_id}, "
                     f"cluster_configs: {cluster_configs}")
+
+        # Initialize MIGs for local development
+        if isinstance(mig_client, FakeMigClient):
+            for cluster, regions in cluster_configs.items():
+                for region in regions:
+                    mig_client.initialize_mig(cluster, region)
 
     async def scale_clusters(self) -> None:
         """

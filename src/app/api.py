@@ -6,6 +6,7 @@ from pydantic import BaseModel, computed_field
 from typing import Dict, Any, List
 
 from app.config_manager import config
+from app.fake_mig_client import FakeMigClient
 from app.utils import setup_logger
 from app.scheduler import Scheduler
 from app.cluster_orchestrator import ClusterOrchestrator
@@ -54,10 +55,10 @@ def init_scheduler():
 
     # The FakeMigManager simulates VMs and MIGs for testing
     if config.use_fake_mig_client:
-        logger.info("Using FakeMigManager for local environment")
-        # TODO: Implement the FakeMigClient class
+        logger.info("Using FakeMigClient for local environment")
+        mig_client = FakeMigClient()
     else:
-        logger.info("Using real MigManager for non-local environment")
+        logger.info("Using real MigClient for non-local environment")
         mig_client = MigClient(config.gcp_project)
 
     # Initialize the cluster orchestrator with max scale limits
