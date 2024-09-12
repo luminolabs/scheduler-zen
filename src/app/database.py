@@ -66,7 +66,7 @@ class Database:
                     stopped_timestamp TIMESTAMP WITH TIME ZONE,
                     completed_timestamp TIMESTAMP WITH TIME ZONE,
                     failed_timestamp TIMESTAMP WITH TIME ZONE,
-                    CONSTRAINT jobs_pk PRIMARY KEY (id, user_id)
+                    CONSTRAINT jobs_pk PRIMARY KEY (job_id, user_id)
                 )
             ''')
             logger.info("Database tables created")
