@@ -89,5 +89,8 @@ class ClusterManager:
         except NotFound:
             # If MIG is not found,
             # remove region from cluster so that it's not considered for scaling in the future
+            if region not in self.regions:
+                # Region has already been removed by another task
+                pass
             logger.error(f"{log_prefix} Not found - removing region from cluster.")
             self.regions.remove(region)

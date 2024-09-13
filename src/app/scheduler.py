@@ -159,6 +159,12 @@ class Scheduler:
             vm_name = data['vm_name']
             region = get_region_from_vm_name(vm_name)
 
+            # Ignore heartbeats for workflow statuses
+            # We'll come back to this later:
+            # https://linear.app/luminoai/issue/LUM-640/mechanism-to-stream-job-logs-and-metrics
+            if new_status.startswith('wf-'):
+                return
+
             job = await self.db.get_job(job_id)
             if not job:
                 logger.info(f"Ignoring heartbeat for non-existent job id: {job_id}")
