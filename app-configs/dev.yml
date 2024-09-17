@@ -1,1 +1,2 @@
 log_level: DEBUG
+mig_api_rate_limit: 100  # requests per second for MIG API
