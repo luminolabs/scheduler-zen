@@ -28,6 +28,8 @@ services:
       - SZ_DB_PORT=${SZ_DB_PORT}
     depends_on:
       - db
+    extra_hosts:
+      - "localhost:host-gateway"
 
 volumes:
   postgres_data:
