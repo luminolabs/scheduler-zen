@@ -5,12 +5,13 @@ services:
       POSTGRES_DB: ${SZ_DB_NAME}
       POSTGRES_USER: ${SZ_DB_USER}
       POSTGRES_PASSWORD: ${SZ_DB_PASS}
+      PGPORT: ${SZ_DB_PORT}
+    networks:
+      - lumino-network
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "35200:5432"
-    # Uncomment the following line to log all SQL statements (don't commit this to git)
-    # command: ["postgres", "-c", "log_statement=all"]
+      - "${SZ_DB_PORT}:${SZ_DB_PORT}"
 
   api:
     build: .
@@ -26,9 +27,16 @@ services:
       - SZ_DB_USER=${SZ_DB_USER}
       - SZ_DB_PASS=${SZ_DB_PASS}
       - SZ_DB_HOST=db
-      - SZ_DB_PORT=5432
+      - SZ_DB_PORT=${SZ_DB_PORT}
+    networks:
+      - lumino-network
     depends_on:
       - db
 
 volumes:
   postgres_data:
+
+networks:
+  lumino-network:
+    driver: macvlan
+    name: lumino-network
