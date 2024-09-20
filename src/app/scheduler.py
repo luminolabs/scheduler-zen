@@ -108,6 +108,9 @@ class Scheduler:
                 #  `num_gpus` is only needed for the `torchtunewrapper` workflow
                 if job['workflow'] == 'torchtunewrapper':
                     job['args']['num_gpus'] = job['cluster'].split('x')[0]  # Extract number of GPUs from cluster name
+                # Move `override_env` to the top level of the job data
+                if 'override_env' in job['args']:
+                    job['override_env'] = job['args'].pop('override_env')
                 # Update job status to WAIT_FOR_VM
                 await self.db.update_job(job['job_id'], JOB_STATUS_WAIT_FOR_VM)
                 # Publish start signal to Pub/Sub
