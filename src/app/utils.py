@@ -102,7 +102,7 @@ def setup_logger(name: str,
     # Log to stdout and to file
     os.makedirs(os.path.dirname(config.log_file), exist_ok=True)
     stdout_handler = logging.StreamHandler(sys.stdout)
-    file_handler = TimedRotatingFileHandler(config.log_file, when="midnight", interval=1)
+    file_handler = TimedRotatingFileHandler(config.log_file, when="midnight", interval=1, backupCount=2)
     file_handler.suffix = "%Y%m%d"
 
     # Set the logger format
