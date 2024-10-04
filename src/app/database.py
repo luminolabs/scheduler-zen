@@ -42,7 +42,6 @@ class Database:
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                     user_id VARCHAR DEFAULT '0' NOT NULL,
-                    notes TEXT,
                     workflow TEXT,
                     args JSONB,
                     keep_alive BOOLEAN,
@@ -245,7 +244,6 @@ class Database:
             'vm_name': row['vm_name'],
             'region': row['region'],
             'user_id': row['user_id'],
-            'notes': row['notes'],
             'timestamps': {
                 'new': format_time(row.get('new_timestamp')),
                 'wait_for_vm': format_time(row.get('wait_for_vm_timestamp')),
