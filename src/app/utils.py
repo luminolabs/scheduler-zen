@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+from datetime import datetime
 from logging.handlers import TimedRotatingFileHandler
 from typing import Optional
 
@@ -116,3 +117,12 @@ def setup_logger(name: str,
         logger.addHandler(stdout_handler)
     logger.addHandler(file_handler)
     return logger
+
+
+def format_time(datetime_obj: datetime | None) -> str | None:
+    """
+    Format a datetime object to a string.
+    """
+    if not datetime_obj:
+        return None
+    return datetime_obj.strftime("%Y-%m-%dT%H:%M:%SZ")

@@ -3,7 +3,7 @@ import json
 from typing import List, Dict, Any, Optional, Union
 
 from app.utils import (
-    JOB_STATUS_NEW, setup_logger
+    JOB_STATUS_NEW, setup_logger, format_time
 )
 
 # Set up logging
@@ -42,7 +42,6 @@ class Database:
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                     user_id VARCHAR DEFAULT '0' NOT NULL,
-                    notes TEXT,
                     workflow TEXT,
                     args JSONB,
                     keep_alive BOOLEAN,
@@ -200,8 +199,9 @@ class Database:
         """
         async with self.pool.acquire() as conn:
             query = """
-                SELECT * FROM jobs 
-                WHERE user_id = $1 AND id = ANY($2)
+                SELECT * FROM jobs
+                LEFT JOIN job_status_timestamps ON jobs.id = job_status_timestamps.job_id
+                WHERE jobs.user_id = $1 AND id = ANY($2)
             """
             rows = await conn.fetch(query, user_id, job_ids)
             jobs = [self._row_to_dict(row) for row in rows]
@@ -234,8 +234,8 @@ class Database:
             return None
         return {
             'job_id': row['id'],
-            'created_at': row['created_at'].isoformat(),
-            'updated_at': row['updated_at'].isoformat(),
+            'created_at': format_time(row['created_at']),
+            'updated_at': format_time(row['updated_at']),
             'workflow': row['workflow'],
             'args': json.loads(row['args']),
             'keep_alive': row['keep_alive'],
@@ -244,5 +244,15 @@ class Database:
             'vm_name': row['vm_name'],
             'region': row['region'],
             'user_id': row['user_id'],
-            'notes': row['notes'],
+            'timestamps': {
+                'new': format_time(row.get('new_timestamp')),
+                'wait_for_vm': format_time(row.get('wait_for_vm_timestamp')),
+                'found_vm': format_time(row.get('found_vm_timestamp')),
+                'detached_vm': format_time(row.get('detached_vm_timestamp')),
+                'running': format_time(row.get('running_timestamp')),
+                'stopping': format_time(row.get('stopping_timestamp')),
+                'stopped': format_time(row.get('stopped_timestamp')),
+                'completed': format_time(row.get('completed_timestamp')),
+                'failed': format_time(row.get('failed_timestamp')),
+            }
         }
