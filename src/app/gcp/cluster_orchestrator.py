@@ -1,10 +1,11 @@
 import asyncio
 from typing import Dict, List, Union
-from app.utils import setup_logger
-from app.cluster_manager import ClusterManager
-from app.mig_client import MigClient
-from app.fake_mig_client import FakeMigClient
-from app.database import Database
+
+from app.core.database import Database
+from app.core.utils import setup_logger
+from app.gcp.cluster_manager import ClusterManager
+from app.gcp.fake_mig_client import FakeMigClient
+from app.gcp.mig_client import MigClient
 
 logger = setup_logger(__name__)
 

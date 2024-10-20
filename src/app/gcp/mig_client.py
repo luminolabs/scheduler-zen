@@ -1,12 +1,13 @@
 import asyncio
 from typing import Optional
 
+from google.api_core import retry_async
 from google.api_core.exceptions import NotFound
 from google.cloud import compute_v1
-from google.api_core import retry_async
 
-from app.config_manager import config
-from app.utils import setup_logger, get_mig_name_from_vm_name, get_region_from_vm_name
+from app.core.config_manager import config
+from app.core.utils import setup_logger
+from app.gcp.utils import get_region_from_vm_name, get_mig_name_from_vm_name
 
 # Set up logging
 logger = setup_logger(__name__)

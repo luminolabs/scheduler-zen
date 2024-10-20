@@ -1,3 +1,6 @@
+# Environment
+local_env_name: local
+
 # Logging
 log_level: INFO
 log_stdout: true
@@ -8,6 +11,13 @@ gcp_project: neat-airport-407301
 heartbeat_topic: pipeline-zen-jobs-heartbeats
 heartbeat_subscription: pipeline-zen-jobs-heartbeats-scheduler
 mig_api_rate_limit: 10  # concurrent requests for GCP MIG API
+
+# LUM
+lum_rpc_url: wss://holesky.drpc.org
+lum_contract_address: 0x76ebc106f195D8DA1bffC26390360a258E7dD8A4
+lum_job_manager_abi_path: ./assets/job_manager_abi.json
+lum_account_address: 0x4118CFD00dD5e8CED96e0ff8061F56F2d155e83B
+lum_account_private_key:
 
 # Database
 # Set these in your .env file when running on a local env

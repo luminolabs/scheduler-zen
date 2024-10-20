@@ -9,6 +9,13 @@ asyncpg
 # GCP
 google-cloud-pubsub
 google-cloud-compute
+google-cloud-storage
+
+# Blockchain
+web3
 
 # Other
 pyyaml
+
+# Task scheduling
+apscheduler

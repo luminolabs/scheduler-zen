@@ -1,5 +1,7 @@
 from typing import Optional, Dict
-from app.utils import setup_logger, get_mig_name_from_cluster_and_region
+
+from app.core.utils import setup_logger
+from app.gcp.utils import get_mig_name_from_cluster_and_region
 
 logger = setup_logger(__name__)
 

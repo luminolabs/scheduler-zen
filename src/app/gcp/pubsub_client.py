@@ -4,7 +4,7 @@ from typing import Callable, Dict, Any
 
 from google.cloud import pubsub_v1
 
-from app.utils import setup_logger
+from app.core.utils import setup_logger
 
 # Set up logging
 logger = setup_logger(__name__)
