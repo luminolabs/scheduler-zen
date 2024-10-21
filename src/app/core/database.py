@@ -4,7 +4,7 @@ from typing import List, Dict, Any, Optional, Union
 import asyncpg
 
 from app.core.utils import (
-    JOB_STATUS_NEW, setup_logger, format_time, PROVIDER_GCP, PROVIDER_LUM
+    JOB_STATUS_NEW, setup_logger, format_time, PROVIDER_GCP, PROVIDER_LUM, recursive_json_decode
 )
 
 # Set up logging
@@ -67,6 +67,7 @@ class Database:
                     job_id VARCHAR NOT NULL,
                     user_id VARCHAR NOT NULL,
                     tx_hash VARCHAR,
+                    lum_id INTEGER,
                     CONSTRAINT jobs_lum_pk PRIMARY KEY (job_id, user_id)
                 )
             ''')
@@ -277,7 +278,8 @@ class Database:
 
     async def update_job_lum(self, job_id: str, user_id: str,
                              status: Optional[str] = None,
-                             tx_hash: Optional[str] = None) -> None:
+                             tx_hash: Optional[str] = None,
+                             lum_id: Optional[int] = None) -> None:
         """
         Update the status of a job in the database and update its status timestamp.
 
@@ -286,6 +288,7 @@ class Database:
             user_id (str): The ID of the user.
             status (str): The new status of the job.
             tx_hash (Optional[str]): The transaction hash of the job.
+            lum_id (Optional[int]): The protocol job ID.
         """
         async with self.pool.acquire() as conn:
             async with conn.transaction():
@@ -307,6 +310,9 @@ class Database:
                 if tx_hash:
                     sql = 'UPDATE jobs_lum SET tx_hash = $1 WHERE job_id = $2 AND user_id = $3'
                     await conn.execute(sql, tx_hash, job_id, user_id)
+                if lum_id:
+                    sql = 'UPDATE jobs_lum SET lum_id = $1 WHERE job_id = $2 AND user_id = $3'
+                    await conn.execute(sql, lum_id, job_id, user_id)
 
     async def get_jobs_by_status_lum(self, statuses: Union[str, List[str]]) -> List[Dict[str, Any]]:
         """
@@ -378,7 +384,7 @@ class Database:
                 LEFT JOIN jobs_lum l ON j.id = l.job_id
                 LEFT JOIN jobs_status_timestamps t ON j.id = t.job_id
                 LEFT JOIN jobs_artifacts a ON j.id = a.job_id
-                WHERE jobs_gcp.user_id = $1 AND id = ANY($2)
+                WHERE j.user_id = $1 AND j.id = ANY($2)
             """
             rows = await conn.fetch(query, user_id, job_ids)
             jobs = [self._row_to_dict(row) for row in rows]
@@ -416,6 +422,7 @@ class Database:
         """
         if row is None:
             return None
+        artifacts = recursive_json_decode(row.get('artifacts'))
         return {
             'job_id': row['id'],
             'user_id': row['user_id'],
@@ -427,6 +434,7 @@ class Database:
             'provider': row['provider'],
             'lum': {
                 'tx_hash': row['tx_hash'],
+                'lum_id': row['lum_id'],
             } if row['provider'] == 'LUM' else None,
             'gcp': {
                 'keep_alive': row['keep_alive'],
@@ -446,5 +454,5 @@ class Database:
                 'completed': format_time(row.get('completed_timestamp')),
                 'failed': format_time(row.get('failed_timestamp')),
             },
-            'artifacts': row.get('artifacts')
+            'artifacts': artifacts,
         }

@@ -1,13 +1,13 @@
 import asyncio
 import json
-from typing import Dict
+from typing import Dict, Tuple
 
 from hexbytes import HexBytes
 from web3 import Web3, AsyncWeb3, WebSocketProvider
 from web3.exceptions import TransactionNotFound
 
 from app.core.utils import (
-    JOB_STATUS_NEW, JOB_STATUS_QUEUED,
+    JOB_STATUS_NEW, JOB_STATUS_WAIT_FOR_VM,
     JOB_STATUS_RUNNING,
     JOB_STATUS_COMPLETED, JOB_STATUS_FAILED,
     setup_logger
@@ -17,7 +17,7 @@ from app.core.utils import (
 logger = setup_logger(__name__)
 
 JOB_STATUSES = (
-    JOB_STATUS_NEW, JOB_STATUS_QUEUED, JOB_STATUS_RUNNING,
+    JOB_STATUS_NEW, JOB_STATUS_WAIT_FOR_VM, JOB_STATUS_RUNNING,
     JOB_STATUS_COMPLETED, JOB_STATUS_FAILED
 )
 
@@ -70,25 +70,24 @@ class JobManagerClient:
         logger.debug(f"Generated event signatures: {event_signature_hashes}")
         return event_signature_hashes
 
-    async def get_job_status(self, tx_hash: str) -> str:
+    async def get_job_status(self, lum_id: str) -> str:
         """
         Fetches the status of a job by its ID.
 
         Args:
-            tx_hash (str): The job ID (transaction hash).
+            lum_id (str): The LUM job ID.
         Returns:
             str: The job status.
         """
-        logger.info(f"Fetching job status for tx_hash: {tx_hash}")
+        logger.info(f"Fetching job status for tx_hash: {lum_id}")
         # Fetch the job status index from the contract, e.g., 0, 1, 2, etc.
-        # TODO: Replace `16` with the tx_hash, when it's implemented in the contract
-        status_idx = await self.contract.functions.getJobStatus(16).call()
+        status_idx = await self.contract.functions.getJobStatus(lum_id).call()
         # Map and return the status string, e.g., "NEW", "QUEUED", etc.
         status = JOB_STATUSES[status_idx]
-        logger.info(f"Fetched status '{status}' for tx_hash: {tx_hash}")
+        logger.info(f"Fetched status '{status}' for LUM job ID: {lum_id}")
         return status
 
-    async def create_job(self, job_args: dict) -> str:
+    async def create_job(self, job_args: dict) -> Tuple[str, int]:
         """
         Creates a new job with the given details.
 
@@ -112,8 +111,17 @@ class JobManagerClient:
         tx_hash = await self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
         logger.info(f"Transaction sent, tx_hash: {tx_hash.hex()}")
         # Wait for the transaction receipt and return the transaction hash
-        await self.wait_for_receipt(tx_hash)
-        return tx_hash.hex()
+        receipt = await self.wait_for_receipt(tx_hash)
+        # Decode the event logs to get the job ID
+        event_signature_hash = self.event_signature_hashes.get('JobCreated')
+        for log in receipt['logs']:
+            if log['topics'][0].hex() == event_signature_hash:
+                # Extract the job ID from the log data
+                lum_id = int(log['topics'][1].hex(), 16)
+                logger.info(f"Job created with job_id: {lum_id}, tx_hash: {tx_hash.hex()}")
+                return tx_hash.hex(), lum_id
+        # Raise an error if the job ID is not found in the transaction logs
+        raise SystemError(f"Job creation failed, could not retrieve lum_id, tx_hash: {tx_hash.hex()}")
 
     async def wait_for_receipt(self, tx_hash: HexBytes, timeout: int = 120, poll_interval: int = 2) -> dict:
         """

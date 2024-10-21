@@ -59,7 +59,7 @@ async def pull_artifacts_meta_from_gcs(job_id: str, user_id: str, db: Database, 
     """
     # Get job region from DB
     job = await db.get_job(job_id, user_id)
-    region = job['region'] if job['provider'] == 'gcp' else 'us-central1'
+    region = job['gcp']['region'] if job['provider'] == 'gcp' else 'us-central1'
     # Construct the job-meta.json object location in GCS
     bucket_name = get_results_bucket(region)
     object_name = f'{user_id}/{job_id}/job-meta.json'
@@ -67,7 +67,7 @@ async def pull_artifacts_meta_from_gcs(job_id: str, user_id: str, db: Database, 
     bucket = gcs.bucket(bucket_name)
     try:
         blob = bucket.blob(object_name)
-        return json.load(blob.download_as_bytes())
+        return json.loads(blob.download_as_bytes())
     except NotFound:
         logger.error(f"Blob not found: {object_name} in bucket {bucket_name}")
         return None

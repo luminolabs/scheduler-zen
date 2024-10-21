@@ -3,8 +3,8 @@ from typing import Dict, Any
 
 from app.core.database import Database
 from app.core.utils import (
-    JOB_STATUS_NEW, JOB_STATUS_QUEUED, JOB_STATUS_RUNNING,
-    setup_logger
+    JOB_STATUS_NEW, JOB_STATUS_RUNNING,
+    setup_logger, JOB_STATUS_WAIT_FOR_VM
 )
 from app.lum.job_manager_client import JobManagerClient
 
@@ -58,9 +58,9 @@ class Scheduler:
         # Add job to the database
         job_id = await self.db.add_job_lum(job_data)
         # Create job on the blockchain
-        tx_hash = await self.job_manager_client.create_job(job_data['args'])
+        tx_hash, lum_id = await self.job_manager_client.create_job(job_data['args'])
         # Update job with transaction hash
-        await self.db.update_job_lum(job_id, job_data['user_id'], tx_hash=tx_hash)
+        await self.db.update_job_lum(job_id, job_data['user_id'], tx_hash=tx_hash, lum_id=lum_id)
         # Log the job creation and return the job ID
         logger.info(f"Added new LUM job with ID: {job_id}; "
                     f"tx_hash: {tx_hash}; status: {JOB_STATUS_NEW}")
@@ -71,10 +71,10 @@ class Scheduler:
         logger.info("Starting LUM job monitoring")
         while self.running:
             # Get all jobs that are not in a final state
-            active_jobs = await self.db.get_jobs_by_status_lum([JOB_STATUS_NEW, JOB_STATUS_QUEUED, JOB_STATUS_RUNNING])
+            active_jobs = await self.db.get_jobs_by_status_lum([JOB_STATUS_NEW, JOB_STATUS_WAIT_FOR_VM, JOB_STATUS_RUNNING])
             # Monitor the status of each job
             for job in active_jobs:
-                new_status = await self.job_manager_client.get_job_status(job['lum']['tx_hash'])
+                new_status = await self.job_manager_client.get_job_status(job['lum']['lum_id'])
                 if new_status != job['status']:
                     # Update the job status in the database
                     await self.db.update_job_lum(job['job_id'], job['user_id'], status=new_status)

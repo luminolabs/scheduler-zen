@@ -109,7 +109,7 @@ class Scheduler:
                 job['args']['user_id'] = job['user_id']
                 #  `num_gpus` is only needed for the `torchtunewrapper` workflow
                 if job['workflow'] == 'torchtunewrapper':
-                    job['args']['num_gpus'] = job['cluster'].split('x')[0]  # Extract number of GPUs from cluster name
+                    job['args']['num_gpus'] = job['gcp']['cluster'].split('x')[0]  # Extract number of GPUs from cluster name
                 # Move `override_env` to the top level of the job data
                 if 'override_env' in job['args']:
                     job['override_env'] = job['args'].pop('override_env')
@@ -140,9 +140,9 @@ class Scheduler:
             # Detach VMs in parallel and update their status in the database
             logger.info("_monitor_and_detach_vms: start")
             logger.info(f"Detaching VMs: "
-                        f"{[job['vm_name'] for job in jobs]} for jobs:"
+                        f"{[job['gcp']['vm_name'] for job in jobs]} for jobs:"
                         f" {[job['job_id'] for job in jobs]}")
-            await asyncio.gather(*[self.mig_client.detach_vm(job['vm_name'], job['job_id']) for job in jobs])
+            await asyncio.gather(*[self.mig_client.detach_vm(job['gcp']['vm_name'], job['job_id']) for job in jobs])
             await asyncio.gather(*[self.db.update_job_gcp(job['job_id'], job['user_id'],
                                                           JOB_STATUS_DETACHED_VM) for job in jobs])
             logger.info('_monitor_and_detach_vms: end')
@@ -161,7 +161,7 @@ class Scheduler:
             """
             data = json.loads(message_data)
             job_id = data['job_id']
-            user_id = data['user_id']
+            user_id = data.get('user_id', "0")
             new_status = data['status']
             vm_name = data['vm_name']
             region = get_region_from_vm_name(vm_name)

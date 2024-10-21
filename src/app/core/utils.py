@@ -15,7 +15,6 @@ INSTANCE_STATUS_RUNNING = 'RUNNING'
 
 # Job statuses
 JOB_STATUS_NEW = 'NEW'
-JOB_STATUS_QUEUED = 'QUEUED'
 JOB_STATUS_RUNNING = 'RUNNING'
 JOB_STATUS_STOPPING = 'STOPPING'
 JOB_STATUS_STOPPED = 'STOPPED'
@@ -30,7 +29,7 @@ JOB_STATUS_DETACHED_VM = 'DETACHED_VM'
 # Ordered list of job statuses
 HEARTBEAT_ORDERED_JOB_STATUSES = [
     # Common statuses
-    JOB_STATUS_NEW, JOB_STATUS_QUEUED,
+    JOB_STATUS_NEW,
     # GCP specific statuses
     JOB_STATUS_WAIT_FOR_VM, JOB_STATUS_FOUND_VM, JOB_STATUS_DETACHED_VM,
     JOB_STATUS_STOPPING, JOB_STATUS_STOPPED,
@@ -109,3 +108,19 @@ def is_local_env() -> bool:
     :return: True if the environment is local, False otherwise
     """
     return config.env_name == config.local_env_name
+
+
+import json
+
+def recursive_json_decode(data):
+    if isinstance(data, str):
+        try:
+            return recursive_json_decode(json.loads(data))
+        except json.JSONDecodeError:
+            return data
+    elif isinstance(data, dict):
+        return {key: recursive_json_decode(value) for key, value in data.items()}
+    elif isinstance(data, list):
+        return [recursive_json_decode(item) for item in data]
+    else:
+        return data
