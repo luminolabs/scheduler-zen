@@ -7,9 +7,10 @@ from web3 import Web3, AsyncWeb3, WebSocketProvider
 from web3.exceptions import TransactionNotFound
 
 from app.core.utils import (
-    JOB_STATUS_NEW, JOB_STATUS_QUEUED, JOB_STATUS_RUNNING,
-    JOB_STATUS_STOPPING, JOB_STATUS_STOPPED,
-    JOB_STATUS_COMPLETED, JOB_STATUS_FAILED, setup_logger
+    JOB_STATUS_NEW, JOB_STATUS_QUEUED,
+    JOB_STATUS_RUNNING,
+    JOB_STATUS_COMPLETED, JOB_STATUS_FAILED,
+    setup_logger
 )
 
 # Set up logging
@@ -17,7 +18,6 @@ logger = setup_logger(__name__)
 
 JOB_STATUSES = (
     JOB_STATUS_NEW, JOB_STATUS_QUEUED, JOB_STATUS_RUNNING,
-    JOB_STATUS_STOPPING, JOB_STATUS_STOPPED,
     JOB_STATUS_COMPLETED, JOB_STATUS_FAILED
 )
 

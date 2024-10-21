@@ -33,10 +33,16 @@ HEARTBEAT_ORDERED_JOB_STATUSES = [
     JOB_STATUS_NEW, JOB_STATUS_QUEUED,
     # GCP specific statuses
     JOB_STATUS_WAIT_FOR_VM, JOB_STATUS_FOUND_VM, JOB_STATUS_DETACHED_VM,
+    JOB_STATUS_STOPPING, JOB_STATUS_STOPPED,
     # Common statuses
     JOB_STATUS_RUNNING,
-    JOB_STATUS_STOPPING, JOB_STATUS_STOPPED,
     JOB_STATUS_COMPLETED, JOB_STATUS_FAILED]
+
+# Terminal job statuses
+TERMINAL_JOB_STATUSES = [JOB_STATUS_STOPPED, JOB_STATUS_COMPLETED, JOB_STATUS_FAILED]
+# Non-terminal job statuses (computed)
+NON_TERMINAL_JOB_STATUSES = [status for status in HEARTBEAT_ORDERED_JOB_STATUSES
+                             if status not in TERMINAL_JOB_STATUSES]
 
 
 def is_new_job_status_valid(old_status: str, new_status: str) -> bool:

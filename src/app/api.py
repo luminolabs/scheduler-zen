@@ -16,6 +16,7 @@ from app.gcp.pubsub_client import PubSubClient
 from app.gcp.scheduler import Scheduler as GCPScheduler
 from app.lum.job_manager_client import JobManagerClient
 from app.lum.scheduler import Scheduler as LUMScheduler
+from app.tasks.artifacts_sync import start_artifacts_sync_task
 
 # Set up logging
 logger = setup_logger(__name__)
@@ -89,6 +90,8 @@ async def lifespan(app: FastAPI):
     logger.info("Starting schedulers")
     asyncio.create_task(gcp_scheduler.start())
     asyncio.create_task(lum_scheduler.start())
+    logger.info("Starting artifacts sync task")
+    start_artifacts_sync_task(db)
     yield
     # Application shutdown
     logger.info("Stopping schedulers")
