@@ -20,6 +20,9 @@ WORKDIR /project
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
+# Copy assets
+COPY assets assets
+
 # Copy app configs
 COPY app-configs app-configs
 
