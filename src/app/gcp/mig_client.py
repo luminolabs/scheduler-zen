@@ -1,12 +1,13 @@
 import asyncio
 from typing import Optional
 
-from google.api_core.exceptions import NotFound
-from google.cloud import compute_v1
 from google.api_core import retry_async
+from google.api_core.exceptions import NotFound, BadRequest
+from google.cloud import compute_v1
 
-from app.config_manager import config
-from app.utils import setup_logger, get_mig_name_from_vm_name, get_region_from_vm_name
+from app.core.config_manager import config
+from app.core.utils import setup_logger
+from app.gcp.utils import get_region_from_vm_name, get_mig_name_from_vm_name
 
 # Set up logging
 logger = setup_logger(__name__)
@@ -150,6 +151,9 @@ class MigClient:
             )
             # Execute the request
             logger.info(f"MIG {mig_name}: detaching VM {vm_name} for job {job_id}")
-            operation = await asyncio.to_thread(self.client.abandon_instances, request)
+            try:
+                operation = await asyncio.to_thread(self.client.abandon_instances, request)
+            except BadRequest as e:
+                logger.error(f"MIG {mig_name}: failed to detach VM {vm_name}: {e}")
             await asyncio.to_thread(operation.result)
             logger.info(f"MIG {mig_name}: detached VM {vm_name} for job {job_id}")

@@ -4,7 +4,7 @@ from typing import Callable, Dict, Any
 
 from google.cloud import pubsub_v1
 
-from app.utils import setup_logger
+from app.core.utils import setup_logger
 
 # Set up logging
 logger = setup_logger(__name__)
@@ -54,7 +54,7 @@ class PubSubClient:
         logger.info(f"Publishing job to topic: {topic_name} with data: {job_data}")
         topic_path = self.publisher.topic_path(self.project_id, topic_name)
         data = json.dumps(job_data).encode("utf-8")
-        future = self.publisher.publish(topic_path, data, cluster=job_data['cluster'])
+        future = self.publisher.publish(topic_path, data, cluster=job_data['gcp']['cluster'])
         await asyncio.to_thread(future.result)
 
     async def publish_stop_signal(self, topic_name: str, job_id: str) -> None:

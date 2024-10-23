@@ -37,6 +37,8 @@ eval "$SECRET_PAYLOAD"
 export SZ_DB_NAME
 export SZ_DB_USER
 export SZ_DB_PASS
+export SZ_LUM_CONTRACT_ADDRESS
+export SZ_LUM_ACCOUNT_PRIVATE_KEY
 
 # Configure docker to use gcloud as a credential helper
 gcloud auth configure-docker us-central1-docker.pkg.dev --quiet

@@ -3,9 +3,10 @@ from typing import List
 
 from google.api_core.exceptions import NotFound
 
-from app.database import Database
-from app.utils import setup_logger, JOB_STATUS_WAIT_FOR_VM, get_mig_name_from_cluster_and_region, JOB_STATUS_FOUND_VM
-from app.mig_client import MigClient
+from app.core.database import Database
+from app.core.utils import setup_logger, JOB_STATUS_WAIT_FOR_VM, JOB_STATUS_FOUND_VM
+from app.gcp.mig_client import MigClient
+from app.gcp.utils import get_mig_name_from_cluster_and_region
 
 # Set up logging
 logger = setup_logger(__name__)
@@ -48,7 +49,7 @@ class ClusterManager:
         Scale all regions based on pending jobs.
         """
         # Get the total number of pending jobs for the cluster
-        pending_jobs_count = len(await self.db.get_jobs_by_status(JOB_STATUS_WAIT_FOR_VM, self.cluster))
+        pending_jobs_count = len(await self.db.get_jobs_by_status_gcp(JOB_STATUS_WAIT_FOR_VM, self.cluster))
         # Scale all regions in parallel
         logger.info(f"Cluster: {self.cluster}: Scaling all regions: Pending jobs count: {pending_jobs_count}")
         tasks = []
@@ -74,7 +75,7 @@ class ClusterManager:
             # Scale down is not allowed when we are in the process of detaching VMs;
             # `FOUND_VM` status indicates that the VM is being detached
             # We do this so that we don't scale down while a VM is running a job
-            can_scale_down = len(await self.db.get_jobs_by_status(JOB_STATUS_FOUND_VM, self.cluster, region)) == 0
+            can_scale_down = len(await self.db.get_jobs_by_status_gcp(JOB_STATUS_FOUND_VM, self.cluster, region)) == 0
             # Scale the MIG if needed:
             # - If new target size is greater than current target size
             # - If new target size is less than current target size and scaling down is allowed

@@ -1,2 +1,1 @@
 log_level: DEBUG
-mig_api_rate_limit: 100  # concurrent requests for GCP MIG API
