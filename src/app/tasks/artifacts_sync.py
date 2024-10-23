@@ -17,12 +17,14 @@ async def sync_artifacts_for_lum_jobs(db: Database):
 
     # Get all LUM jobs that are not in terminal status
     lum_jobs = await db.get_jobs_by_status_lum(NON_TERMINAL_JOB_STATUSES)
+    gcp_jobs = await db.get_jobs_by_status_gcp(NON_TERMINAL_JOB_STATUSES)
+    all_jobs = lum_jobs + gcp_jobs
 
     # Initialize GCS client
     gcs_client = storage.Client(project=config.gcp_project)
 
     # Process each job
-    for job in lum_jobs:
+    for job in all_jobs:
         try:
             # Pull artifacts meta from GCS
             artifacts_meta = await pull_artifacts_meta_from_gcs(job['job_id'], job['user_id'], db, gcs_client)
