@@ -366,6 +366,25 @@ class Database:
             logger.info(f"Retrieved job with id: {job_id}")
             return self._row_to_dict(row)
 
+    async def get_recently_completed_jobs(self) -> List[Dict[str, Any]]:
+        """
+        Retrieve all jobs that have completed in the last 10 minutes.
+        """
+        async with self.pool.acquire() as conn:
+            query = """
+                SELECT *, a.data as artifacts FROM jobs j
+                LEFT JOIN jobs_gcp g ON j.id = g.job_id
+                LEFT JOIN jobs_lum l ON j.id = l.job_id
+                LEFT JOIN jobs_status_timestamps t ON j.id = t.job_id
+                LEFT JOIN jobs_artifacts a ON j.id = a.job_id
+                WHERE j.status = 'COMPLETED' AND j.updated_at > NOW() - INTERVAL '10 minutes'
+            """
+            rows = await conn.fetch(query)
+            jobs = [self._row_to_dict(row) for row in rows]
+
+        logger.info(f"Retrieved {len(jobs)} recently completed jobs")
+        return jobs
+
     async def get_jobs_by_user_and_ids(self, user_id: str, job_ids: List[str]) -> List[Dict[str, Any]]:
         """
         Retrieve jobs for a specific user with the given job IDs.

@@ -9,16 +9,17 @@ from app.core.utils import setup_logger, NON_TERMINAL_JOB_STATUSES
 
 logger = setup_logger(__name__)
 
-async def sync_artifacts_for_lum_jobs(db: Database):
+async def sync_job_artifacts(db: Database):
     """
-    Synchronize artifacts for LUM provider jobs that are not in terminal status.
+    Synchronize artifacts.
     """
-    logger.info("Starting artifacts sync for LUM jobs")
+    logger.info("Starting artifacts sync")
 
-    # Get all LUM jobs that are not in terminal status
+    # Get all jobs that are not in terminal status and recently completed jobs
     lum_jobs = await db.get_jobs_by_status_lum(NON_TERMINAL_JOB_STATUSES)
     gcp_jobs = await db.get_jobs_by_status_gcp(NON_TERMINAL_JOB_STATUSES)
-    all_jobs = lum_jobs + gcp_jobs
+    recently_completed_jobs = await db.get_recently_completed_jobs()
+    all_jobs = lum_jobs + gcp_jobs + recently_completed_jobs
 
     # Initialize GCS client
     gcs_client = storage.Client(project=config.gcp_project)
@@ -39,14 +40,14 @@ async def sync_artifacts_for_lum_jobs(db: Database):
         except Exception as e:
             logger.error(f"Error processing artifacts for job {job['job_id']}: {str(e)}")
 
-    logger.info("Completed artifacts sync for LUM jobs")
+    logger.info("Completed artifacts sync")
 
 async def run_artifacts_sync(db: Database):
     """
     Run the artifacts sync task periodically.
     """
     while True:
-        await sync_artifacts_for_lum_jobs(db)
+        await sync_job_artifacts(db)
         # Wait for 10 seconds before the next sync
         await asyncio.sleep(10)
 
