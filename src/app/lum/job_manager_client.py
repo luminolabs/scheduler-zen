@@ -16,6 +16,8 @@ from app.core.utils import (
 # Set up logging
 logger = setup_logger(__name__)
 
+# Job statuses, indexed by their integer values, as defined in the contract
+# i.e. order of declaration is important
 JOB_STATUSES = (
     JOB_STATUS_NEW, JOB_STATUS_WAIT_FOR_VM, JOB_STATUS_RUNNING,
     JOB_STATUS_COMPLETED, JOB_STATUS_FAILED

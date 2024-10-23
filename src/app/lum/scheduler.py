@@ -1,6 +1,7 @@
 import asyncio
 from typing import Dict, Any
 
+from app.core.config_manager import config
 from app.core.database import Database
 from app.core.utils import (
     JOB_STATUS_NEW, JOB_STATUS_RUNNING,
@@ -70,13 +71,19 @@ class Scheduler:
         """Monitor and update the status of LUM jobs."""
         logger.info("Starting LUM job monitoring")
         while self.running:
-            # Get all jobs that are not in a final state
-            active_jobs = await self.db.get_jobs_by_status_lum([JOB_STATUS_NEW, JOB_STATUS_WAIT_FOR_VM, JOB_STATUS_RUNNING])
-            # Monitor the status of each job
-            for job in active_jobs:
-                new_status = await self.job_manager_client.get_job_status(job['lum']['lum_id'])
-                if new_status != job['status']:
-                    # Update the job status in the database
-                    await self.db.update_job_lum(job['job_id'], job['user_id'], status=new_status)
-                    logger.info(f"Updated LUM job {job['job_id']} status from {job['status']} to {new_status}")
-            await asyncio.sleep(30)  # Wait for 30 seconds before the next monitoring cycle
+            try:
+                # Get all jobs that are not in a final state
+                active_jobs = await self.db.get_jobs_by_status_lum([JOB_STATUS_NEW, JOB_STATUS_WAIT_FOR_VM, JOB_STATUS_RUNNING])
+                # Monitor the status of each job
+                for job in active_jobs:
+                    new_status = await self.job_manager_client.get_job_status(job['lum']['lum_id'])
+                    if new_status != job['status']:
+                        # Update the job status in the database
+                        await self.db.update_job_lum(job['job_id'], job['user_id'], status=new_status)
+                        logger.info(f"Updated LUM job {job['job_id']} status from {job['status']} to {new_status}")
+                await asyncio.sleep(config.lum_job_monitor_interval_s)  # Wait before the next monitoring cycle
+            except Exception as e:
+                # Log the error and continue monitoring;
+                # hopefully it's a transient issue or it affects only some jobs
+                logger.error(f"Error monitoring LUM jobs: {str(e)}")
+                await asyncio.sleep(config.lum_job_monitor_interval_s)
