@@ -90,7 +90,7 @@ class Scheduler:
         """
         job = await self.db.get_job(job_id, user_id)
         if job and job['status'] == JOB_STATUS_RUNNING:
-            await self.pubsub.publish_stop_signal('pipeline-zen-jobs-stop', job_id)
+            await self.pubsub.publish_stop_signal(config.job_stop_topic, job_id)
             await self.db.update_job_gcp(job_id, user_id, JOB_STATUS_STOPPING)
             logger.info(f"Stopped job id: {job_id} for user id: {user_id}")
             return True
@@ -116,7 +116,7 @@ class Scheduler:
                 # Update job status to WAIT_FOR_VM
                 await self.db.update_job_gcp(job['job_id'], job['user_id'], JOB_STATUS_WAIT_FOR_VM)
                 # Publish start signal to Pub/Sub
-                await self.pubsub.publish_start_signal('pipeline-zen-jobs-start', job)
+                await self.pubsub.publish_start_signal(config.job_start_topic, job)
                 # Log the activity
                 logger.info(f"Job '{job['job_id']}' status changed from {JOB_STATUS_NEW} to {JOB_STATUS_WAIT_FOR_VM}")
             await asyncio.sleep(10)

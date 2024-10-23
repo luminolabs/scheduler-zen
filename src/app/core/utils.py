@@ -1,8 +1,10 @@
+import json
 import logging
 import os
 import sys
 from datetime import datetime
 from logging.handlers import TimedRotatingFileHandler
+from typing import Any
 
 from app.core.config_manager import config
 
@@ -110,9 +112,10 @@ def is_local_env() -> bool:
     return config.env_name == config.local_env_name
 
 
-import json
-
-def recursive_json_decode(data):
+def recursive_json_decode(data: Any) -> Any:
+    """
+    Recursively decode JSON strings into Python objects.
+    """
     if isinstance(data, str):
         try:
             return recursive_json_decode(json.loads(data))
