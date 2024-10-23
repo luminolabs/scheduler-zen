@@ -26,6 +26,7 @@ services:
       - SZ_DB_PASS=${SZ_DB_PASS}
       - SZ_DB_HOST=db
       - SZ_DB_PORT=${SZ_DB_PORT}
+      - SZ_LUM_CONTRACT_ADDRESS=${SZ_LUM_CONTRACT_ADDRESS}
       - SZ_LUM_ACCOUNT_PRIVATE_KEY=${SZ_LUM_ACCOUNT_PRIVATE_KEY}
     depends_on:
       - db

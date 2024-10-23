@@ -15,10 +15,10 @@ mig_api_rate_limit: 100  # concurrent requests for GCP MIG API
 
 # LUM
 lum_rpc_url: wss://holesky.drpc.org
-lum_contract_address: 0x76ebc106f195D8DA1bffC26390360a258E7dD8A4
+lum_contract_address:  # Set this in your .env file: `SZ_LUM_CONTRACT_ADDRESS=.....`
 lum_job_manager_abi_path: ./assets/job_manager_abi.json
 lum_account_address: 0x4118CFD00dD5e8CED96e0ff8061F56F2d155e83B
-lum_account_private_key:
+lum_account_private_key:  # Set this in your .env file: `SZ_LUM_ACCOUNT_PRIVATE_KEY=.....`
 lum_job_monitor_interval_s: 60  # seconds
 
 # Database
