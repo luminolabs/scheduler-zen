@@ -40,9 +40,6 @@ export SZ_DB_PASS
 export SZ_LUM_CONTRACT_ADDRESS
 export SZ_LUM_ACCOUNT_PRIVATE_KEY
 
-# Configure docker to use gcloud as a credential helper
-gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
-
 # Start the services using docker-compose
 echo "Starting services with docker-compose"
 docker compose up --build -d $COMPOSE_OPTS
