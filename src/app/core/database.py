@@ -356,7 +356,7 @@ class Database:
         """
         async with self.pool.acquire() as conn:
             row = await conn.fetchrow('''
-            SELECT *, a.data as artifacts FROM jobs j
+            SELECT *, j.user_id as user_id, a.data as artifacts FROM jobs j
             LEFT JOIN jobs_gcp g ON j.id = g.job_id
             LEFT JOIN jobs_lum l ON j.id = l.job_id
             LEFT JOIN jobs_status_timestamps t ON j.id = t.job_id
@@ -372,7 +372,7 @@ class Database:
         """
         async with self.pool.acquire() as conn:
             query = """
-                SELECT *, a.data as artifacts FROM jobs j
+                SELECT *, j.user_id as user_id, a.data as artifacts FROM jobs j
                 LEFT JOIN jobs_gcp g ON j.id = g.job_id
                 LEFT JOIN jobs_lum l ON j.id = l.job_id
                 LEFT JOIN jobs_status_timestamps t ON j.id = t.job_id
@@ -398,7 +398,7 @@ class Database:
         """
         async with self.pool.acquire() as conn:
             query = """
-                SELECT *, a.data as artifacts FROM jobs j
+                SELECT *, j.user_id as user_id, a.data as artifacts FROM jobs j
                 LEFT JOIN jobs_gcp g ON j.id = g.job_id
                 LEFT JOIN jobs_lum l ON j.id = l.job_id
                 LEFT JOIN jobs_status_timestamps t ON j.id = t.job_id
