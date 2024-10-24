@@ -6,7 +6,7 @@ from google.cloud.storage import Client
 
 from app.core.config_manager import config
 from app.core.database import Database
-from app.core.utils import is_local_env, setup_logger
+from app.core.utils import is_local_env, setup_logger, PROVIDER_GCP, PROVIDER_LUM
 
 logger = setup_logger(__name__)
 
@@ -59,11 +59,17 @@ async def pull_artifacts_meta_from_gcs(job_id: str, user_id: str, db: Database, 
     """
     # Get job region from DB
     job = await db.get_job(job_id, user_id)
-    region = job['gcp']['region'] if job['provider'] == 'gcp' else 'us-central1'
     # Construct the job-meta.json object location in GCS
-    bucket_name = get_results_bucket(region)
-    object_name = f'{user_id}/{job_id}/job-meta.json'
+    if job["provider"] == PROVIDER_GCP:
+        object_name = f'{user_id}/{job_id}/job-meta.json'
+        region = job['gcp']['region']
+    elif job["provider"] == PROVIDER_LUM:
+        object_name = f'{config.lum_account_address}/{job["lum"]["lum_id"]}/job-meta.json'
+        region = 'us-central1'
+    else:
+        raise SystemError(f"Unknown provider: {job['provider']}")
     # Read and return the job-meta.json object as a dict
+    bucket_name = get_results_bucket(region)
     bucket = gcs.bucket(bucket_name)
     try:
         blob = bucket.blob(object_name)
