@@ -221,7 +221,7 @@ class Database:
         if not isinstance(statuses, list):
             statuses = [statuses]
         # Build the SQL query
-        sql = 'SELECT * FROM jobs j LEFT JOIN jobs_gcp g ON j.id = g.job_id WHERE provider = $1 AND j.status = ANY($2)'
+        sql = 'SELECT *, j.user_id as user_id FROM jobs j LEFT JOIN jobs_gcp g ON j.id = g.job_id WHERE provider = $1 AND j.status = ANY($2)'
         args = [PROVIDER_GCP, statuses]
         if cluster:
             args.append(cluster)
@@ -329,7 +329,7 @@ class Database:
             statuses = [statuses]
         # Build the SQL query
         sql = '''
-        SELECT * FROM jobs j 
+        SELECT *, j.user_id as user_id FROM jobs j 
         LEFT JOIN jobs_lum l ON j.id = l.job_id 
         WHERE provider = $1 AND l.tx_hash IS NOT NULL AND j.status = ANY($2)
         '''
