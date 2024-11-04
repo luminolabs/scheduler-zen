@@ -49,7 +49,7 @@ def init_lum_scheduler(db: Database):
         job_manager_abi = json.loads(json.load(f)['result'])
     # Initialize the JobManager client
     job_manager_client = JobManagerClient(
-        rpc_url=config.lum_rpc_url,
+        rpc_url=config.lum_rpc_url + config.alchemy_api_key,
         contract_address=config.lum_contract_address,
         abi=job_manager_abi,
         account_address=config.lum_account_address,

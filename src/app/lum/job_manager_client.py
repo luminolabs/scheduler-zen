@@ -3,7 +3,7 @@ import json
 from typing import Dict, Tuple
 
 from hexbytes import HexBytes
-from web3 import Web3, AsyncWeb3, WebSocketProvider
+from web3 import Web3, AsyncWeb3, AsyncHTTPProvider
 from web3.exceptions import TransactionNotFound
 
 from app.core.utils import (
@@ -40,7 +40,7 @@ class JobManagerClient:
             account_private_key (str): The account private key.
         """
         logger.info(f"Initializing JobManagerClient with contract at {contract_address}...")
-        self.web3 = AsyncWeb3(WebSocketProvider(rpc_url))
+        self.web3 = AsyncWeb3(AsyncHTTPProvider(rpc_url))
         self.contract_address = Web3.to_checksum_address(contract_address)
         self.contract = self.web3.eth.contract(address=self.contract_address, abi=abi)
         self.event_signature_hashes = self._generate_event_signature_hashes(abi)
