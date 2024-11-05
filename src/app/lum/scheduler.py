@@ -30,8 +30,6 @@ class Scheduler:
     async def start(self) -> None:
         """Start the scheduler to manage jobs."""
         self.running = True
-        logger.info("Connecting to Ethereum network")
-        await self.job_manager_client.web3.provider.connect()
         if not await self.job_manager_client.web3.is_connected():
             raise ConnectionError("Unable to connect to the Ethereum network.")
         logger.info("LUM Scheduler started")
@@ -42,8 +40,6 @@ class Scheduler:
     async def stop(self) -> None:
         """Stop the scheduler."""
         self.running = False
-        logger.info("Disconnecting from Ethereum network")
-        await self.job_manager_client.web3.provider.disconnect()
         logger.info("LUM Scheduler stopped")
 
     async def add_job(self, job_data: Dict[str, Any]) -> str:
