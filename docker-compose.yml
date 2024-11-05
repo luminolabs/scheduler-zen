@@ -28,6 +28,7 @@ services:
       - SZ_DB_PORT=${SZ_DB_PORT}
       - SZ_LUM_CONTRACT_ADDRESS=${SZ_LUM_CONTRACT_ADDRESS}
       - SZ_LUM_ACCOUNT_PRIVATE_KEY=${SZ_LUM_ACCOUNT_PRIVATE_KEY}
+      - SZ_ALCHEMY_API_KEY=${SZ_ALCHEMY_API_KEY}
     depends_on:
       - db
     extra_hosts:
