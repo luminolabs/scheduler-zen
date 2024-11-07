@@ -429,6 +429,37 @@ class Database:
             ''', job_id, user_id, json.dumps(data))
         logger.info(f"Updated artifacts for job id: {job_id} for user id: {user_id}, data: {data}")
 
+
+    async def get_pending_lum_receipts(self) -> List[Dict[str, Any]]:
+        """
+        Retrieve all LUM jobs that:
+        - Have status = NEW
+        - Have a tx_hash
+        - Don't have a lum_id
+        - Were updated more than 10 seconds ago (to avoid hammering newly created jobs)
+
+        Returns:
+            List[Dict[str, Any]]: A list of jobs needing receipt processing
+        """
+        async with self.pool.acquire() as conn:
+            sql = '''
+            SELECT *, j.user_id as user_id FROM jobs j 
+            LEFT JOIN jobs_lum l ON j.id = l.job_id 
+            LEFT JOIN jobs_status_timestamps t ON j.id = t.job_id
+            LEFT JOIN jobs_artifacts a ON j.id = a.job_id
+            WHERE provider = $1 
+            AND j.status = $2 
+            AND l.tx_hash IS NOT NULL 
+            AND l.lum_id IS NULL
+            AND j.updated_at < NOW() - INTERVAL '10 seconds'
+            '''
+            rows = await conn.fetch(sql, PROVIDER_LUM, JOB_STATUS_NEW)
+            jobs = [self._row_to_dict(row) for row in rows]
+
+        logger.info(f"Retrieved {len(jobs)} jobs pending LUM receipt processing")
+        return jobs
+
+
     @staticmethod
     def _row_to_dict(row: Optional[asyncpg.Record]) -> Optional[Dict[str, Any]]:
         """

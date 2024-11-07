@@ -55,9 +55,9 @@ class Scheduler:
         # Add job to the database
         job_id = await self.db.add_job_lum(job_data)
         # Create job on the blockchain
-        tx_hash, lum_id = await self.job_manager_client.create_job(job_data['args'])
+        tx_hash = await self.job_manager_client.create_job(job_data['args'])
         # Update job with transaction hash
-        await self.db.update_job_lum(job_id, job_data['user_id'], tx_hash=tx_hash, lum_id=lum_id)
+        await self.db.update_job_lum(job_id, job_data['user_id'], tx_hash=tx_hash)
         # Log the job creation and return the job ID
         logger.info(f"Added new LUM job with ID: {job_id}; "
                     f"tx_hash: {tx_hash}; status: {JOB_STATUS_NEW}")
