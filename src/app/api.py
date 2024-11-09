@@ -17,6 +17,7 @@ from app.gcp.scheduler import Scheduler as GCPScheduler
 from app.lum.job_manager_client import JobManagerClient
 from app.lum.scheduler import Scheduler as LUMScheduler
 from app.tasks.artifacts_sync import start_artifacts_sync_task
+from app.tasks.lum_receipt_sync import start_receipt_sync_task
 
 # Set up logging
 logger = setup_logger(__name__)
@@ -42,8 +43,10 @@ def init_gcp_scheduler(db: Database):
     return GCPScheduler(db, pubsub, cluster_orchestrator, mig_client)
 
 
-def init_lum_scheduler(db: Database):
-    """Set up components needed for and initialize the LUM scheduler."""
+def init_lum_job_manager_client():
+    """
+    Initialize the JobManagerClient for interacting with the LUM JobManager contract.
+    """
     # Load the JobManager contract ABI
     with open(config.lum_job_manager_abi_path) as f:
         job_manager_abi = json.loads(json.load(f)['result'])
@@ -55,14 +58,14 @@ def init_lum_scheduler(db: Database):
         account_address=config.lum_account_address,
         account_private_key=config.lum_account_private_key
     )
-    # Initialize the LUM scheduler
-    return LUMScheduler(db, job_manager_client)
+    return job_manager_client
 
 
 # Initialize the database and schedulers
 db = Database(config.database_url)
+job_manager_client = init_lum_job_manager_client()
 gcp_scheduler = init_gcp_scheduler(db)
-lum_scheduler = init_lum_scheduler(db)
+lum_scheduler = LUMScheduler(db, job_manager_client)
 
 
 async def raise_if_job_exists(job_id: str, user_id: str):
@@ -92,6 +95,8 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(lum_scheduler.start())
     logger.info("Starting artifacts sync task")
     start_artifacts_sync_task(db)
+    logger.info("Starting receipt sync task")
+    start_receipt_sync_task(db, job_manager_client)
     yield
     # Application shutdown
     logger.info("Stopping schedulers")
@@ -99,6 +104,7 @@ async def lifespan(app: FastAPI):
     await lum_scheduler.stop()
     logger.info("Disconnecting from the database")
     await db.close()
+
 
 # Create the FastAPI application with the lifespan context manager
 app = FastAPI(lifespan=lifespan)
