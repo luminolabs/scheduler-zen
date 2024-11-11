@@ -239,12 +239,13 @@ class Database:
 
     ### LUM Job Operations ###
 
-    async def add_job_lum(self, job_data: Dict[str, Any]) -> str:
+    async def add_job_lum(self, job_data: Dict[str, Any], conn: Optional[asyncpg.Connection] = None) -> str:
         """
         Add a new job to the database and initialize its status timestamp.
 
         Args:
             job_data (Dict[str, Any]): The job data including workflow and tx_hash.
+            conn (Optional[asyncpg.Connection]): A connection to use for the transaction.
 
         Returns:
             str: The ID of the newly added job.
@@ -255,23 +256,25 @@ class Database:
         args = json.dumps(job_data['args'])
         status = JOB_STATUS_NEW
 
-        async with self.pool.acquire() as conn:
-            async with conn.transaction():
-                # Add the job to the main jobs table
-                await conn.execute('''
-                    INSERT INTO jobs (id, user_id, workflow, args, status, provider)
-                    VALUES ($1, $2, $3, $4, $5, $6)
-                ''', job_id, user_id, workflow, args, status, PROVIDER_LUM)
-                # Add the job to the LUM jobs table
-                await conn.execute('''
-                    INSERT INTO jobs_lum (job_id, user_id)
-                    VALUES ($1, $2)
-                ''', job_id, user_id)
-                # Add the job status timestamp to the jobs timestamps table
-                await conn.execute('''
-                    INSERT INTO jobs_status_timestamps (job_id, user_id, new_timestamp)
-                    VALUES ($1, $2, CURRENT_TIMESTAMP)
-                ''', job_id, user_id)
+        # Use the provided connection or acquire a new one
+        if not conn:
+            conn = await self.pool.acquire()
+
+        # Add the job to the main jobs table
+        await conn.execute('''
+            INSERT INTO jobs (id, user_id, workflow, args, status, provider)
+            VALUES ($1, $2, $3, $4, $5, $6)
+        ''', job_id, user_id, workflow, args, status, PROVIDER_LUM)
+        # Add the job to the LUM jobs table
+        await conn.execute('''
+            INSERT INTO jobs_lum (job_id, user_id)
+            VALUES ($1, $2)
+        ''', job_id, user_id)
+        # Add the job status timestamp to the jobs timestamps table
+        await conn.execute('''
+            INSERT INTO jobs_status_timestamps (job_id, user_id, new_timestamp)
+            VALUES ($1, $2, CURRENT_TIMESTAMP)
+        ''', job_id, user_id)
 
         logger.info(f"Added LUM job with id: {job_id}, user_id: {user_id}, workflow: {workflow}")
         return job_id
@@ -279,7 +282,9 @@ class Database:
     async def update_job_lum(self, job_id: str, user_id: str,
                              status: Optional[str] = None,
                              tx_hash: Optional[str] = None,
-                             lum_id: Optional[int] = None) -> None:
+                             lum_id: Optional[int] = None,
+                             conn: Optional[asyncpg.Connection] = None
+                             ) -> None:
         """
         Update the status of a job in the database and update its status timestamp.
 
@@ -289,30 +294,33 @@ class Database:
             status (str): The new status of the job.
             tx_hash (Optional[str]): The transaction hash of the job.
             lum_id (Optional[int]): The protocol job ID.
+            conn (Optional[asyncpg.Connection]): A connection to use for the transaction.
         """
-        async with self.pool.acquire() as conn:
-            async with conn.transaction():
-                if status:
-                    # Update the job status and timestamp in the main jobs table
-                    await conn.execute('''
-                        UPDATE jobs
-                        SET status = $1, updated_at = CURRENT_TIMESTAMP
-                        WHERE id = $2 AND user_id = $3
-                    ''', status, job_id, user_id)
-                    # Update the job status timestamp in the jobs timestamps table
-                    status_column = f"{status.lower()}_timestamp"
-                    await conn.execute(f'''
-                        UPDATE jobs_status_timestamps
-                        SET {status_column} = CURRENT_TIMESTAMP
-                        WHERE job_id = $1 AND user_id = $2
-                    ''', job_id, user_id)
-                # Update the job details in the LUM jobs table
-                if tx_hash:
-                    sql = 'UPDATE jobs_lum SET tx_hash = $1 WHERE job_id = $2 AND user_id = $3'
-                    await conn.execute(sql, tx_hash, job_id, user_id)
-                if lum_id:
-                    sql = 'UPDATE jobs_lum SET lum_id = $1 WHERE job_id = $2 AND user_id = $3'
-                    await conn.execute(sql, lum_id, job_id, user_id)
+        # Use the provided connection or acquire a new one
+        if not conn:
+            conn = await self.pool.acquire()
+
+        if status:
+            # Update the job status and timestamp in the main jobs table
+            await conn.execute('''
+                UPDATE jobs
+                SET status = $1, updated_at = CURRENT_TIMESTAMP
+                WHERE id = $2 AND user_id = $3
+            ''', status, job_id, user_id)
+            # Update the job status timestamp in the jobs timestamps table
+            status_column = f"{status.lower()}_timestamp"
+            await conn.execute(f'''
+                UPDATE jobs_status_timestamps
+                SET {status_column} = CURRENT_TIMESTAMP
+                WHERE job_id = $1 AND user_id = $2
+            ''', job_id, user_id)
+        # Update the job details in the LUM jobs table
+        if tx_hash:
+            sql = 'UPDATE jobs_lum SET tx_hash = $1 WHERE job_id = $2 AND user_id = $3'
+            await conn.execute(sql, tx_hash, job_id, user_id)
+        if lum_id:
+            sql = 'UPDATE jobs_lum SET lum_id = $1 WHERE job_id = $2 AND user_id = $3'
+            await conn.execute(sql, lum_id, job_id, user_id)
 
     async def get_jobs_by_status_lum(self, statuses: Union[str, List[str]]) -> List[Dict[str, Any]]:
         """
