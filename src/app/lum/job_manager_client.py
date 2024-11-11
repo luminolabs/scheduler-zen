@@ -106,7 +106,14 @@ class JobManagerClient:
             'nonce': await self.web3.eth.get_transaction_count(self.account_address),
         })
         signed_tx = self.web3.eth.account.sign_transaction(tx, self.account_private_key)
-        # Send the signed transaction
-        tx_hash = await self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
-        logger.info(f"Transaction sent with tx_hash: {tx_hash.hex()}")
-        return tx_hash.hex()
+        # Send the signed transaction, retry 5 times if it fails
+        retries = 5
+        e = None
+        while retries > 0:
+            try:
+                tx_hash = await self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
+                logger.info(f"Transaction sent with tx_hash: {tx_hash.hex()}")
+                return tx_hash.hex()
+            except Exception as e:
+                retries -= 1
+        raise ConnectionError(f"Failed to send transaction, tx: {tx}, error: {e}")

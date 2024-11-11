@@ -80,6 +80,6 @@ class Scheduler:
                 await asyncio.sleep(config.lum_job_monitor_interval_s)  # Wait before the next monitoring cycle
             except Exception as e:
                 # Log the error and continue monitoring;
-                # hopefully it's a transient issue or it affects only some jobs
+                # hopefully it's a transient issue, or it affects only some jobs
                 logger.error(f"Error monitoring LUM jobs: {str(e)}")
                 await asyncio.sleep(config.lum_job_monitor_interval_s)
