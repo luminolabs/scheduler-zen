@@ -89,7 +89,6 @@ async def lifespan(app: FastAPI):
     # Application startup
     logger.info("Connecting to the database")
     await db.connect()
-    await db.create_tables()
     logger.info("Starting schedulers")
     asyncio.create_task(gcp_scheduler.start())
     asyncio.create_task(lum_scheduler.start())

@@ -42,29 +42,24 @@ class Scheduler:
         self.running = False
         logger.info("LUM Scheduler stopped")
 
-    async def add_job(self, job_data: Dict[str, Any]) -> str:
+    async def add_job(self, job_data: Dict[str, Any]) -> None:
         """
         Add a new job to the system.
 
         Args:
             job_data (Dict[str, Any]): The job data including workflow and args.
-
-        Returns:
-            str: The ID of the newly added job.
         """
         # Wrap the job creation in a transaction so that we can roll back if the blockchain transaction fails
-        async with self.db.pool.acquire() as conn:
-            async with conn.transaction():
-                # Add job to the database
-                job_id = await self.db.add_job_lum(job_data, conn=conn)
-                # Create job on the blockchain
-                tx_hash = await self.job_manager_client.create_job(job_data['args'])
-                # Update job with transaction hash
-                await self.db.update_job_lum(job_id, job_data['user_id'], tx_hash=tx_hash, conn=conn)
-                # Log the job creation and return the job ID
-                logger.info(f"Added new LUM job with ID: {job_id}; "
-                            f"tx_hash: {tx_hash}; status: {JOB_STATUS_NEW}")
-                return job_id
+        async with self.db.transaction() as conn:
+            # Add job to the database
+            await self.db.add_job_lum(conn, job_data)
+            # Create job on the blockchain
+            tx_hash = await self.job_manager_client.create_job(job_data['args'])
+            # Update job with transaction hash
+            await self.db.update_job_lum(conn, job_data['job_id'], job_data['user_id'], tx_hash=tx_hash)
+        # Log the job creation and return the job ID
+        logger.info(f"Added LUM job id: {job_data['job_id']} for user id: {job_data['user_id']}, "
+                    f"job data: {job_data}")
 
     async def _monitor_jobs(self) -> None:
         """Monitor and update the status of LUM jobs."""
@@ -78,7 +73,8 @@ class Scheduler:
                     new_status = await self.job_manager_client.get_job_status(job['lum']['lum_id'])
                     if new_status != job['status']:
                         # Update the job status in the database
-                        await self.db.update_job_lum(job['job_id'], job['user_id'], status=new_status)
+                        async with self.db.transaction() as conn:
+                            await self.db.update_job_lum(conn, job['job_id'], job['user_id'], status=new_status)
                         logger.info(f"Updated LUM job {job['job_id']} status from {job['status']} to {new_status}")
                 await asyncio.sleep(config.lum_job_monitor_interval_s)  # Wait before the next monitoring cycle
             except Exception as e:

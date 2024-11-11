@@ -62,20 +62,16 @@ class Scheduler:
         await self.pubsub.stop()
         logger.info("Scheduler stopped")
 
-    async def add_job(self, job_data: Dict[str, Any]) -> str:
+    async def add_job(self, job_data: Dict[str, Any]) -> None:
         """
         Add a new job to the system.
 
         Args:
-            job_data (Dict[str, Any]): The job data including workflow, args, keep_alive, and cluster.
-
-        Returns:
-            str: The ID of the newly added job.
+            job_data (Dict[str, Any]): The job data.
         """
-        job_id = await self.db.add_job_gcp(job_data)
-        # Log the activity
-        logger.info(f"Added new job with ID: {job_id}; status: {JOB_STATUS_NEW}")
-        return job_id
+        async with self.db.transaction as conn:
+            await self.db.add_job_gcp(conn, job_data)
+        logger.info(f"Added job id: {job_data['job_id']} for user id: {job_data['user_id']}, job data: {job_data}")
 
     async def stop_job(self, job_id: str, user_id: str) -> bool:
         """
@@ -90,8 +86,9 @@ class Scheduler:
         """
         job = await self.db.get_job(job_id, user_id)
         if job and job['status'] == JOB_STATUS_RUNNING:
-            await self.pubsub.publish_stop_signal(config.job_stop_topic, job_id)
-            await self.db.update_job_gcp(job_id, user_id, JOB_STATUS_STOPPING)
+            async with self.db.transaction as conn:
+                await self.db.update_job_gcp(conn, job_id, user_id, JOB_STATUS_STOPPING)
+                await self.pubsub.publish_stop_signal(config.job_stop_topic, job_id)
             logger.info(f"Stopped job id: {job_id} for user id: {user_id}")
             return True
         logger.warning(f"Job id: {job_id} for user id: {user_id} not running or does not exist")
@@ -113,10 +110,13 @@ class Scheduler:
                 # Move `override_env` to the top level of the job data
                 if 'override_env' in job['args']:
                     job['override_env'] = job['args'].pop('override_env')
-                # Update job status to WAIT_FOR_VM
-                await self.db.update_job_gcp(job['job_id'], job['user_id'], JOB_STATUS_WAIT_FOR_VM)
-                # Publish start signal to Pub/Sub
-                await self.pubsub.publish_start_signal(config.job_start_topic, job)
+
+                async with self.db.transaction as conn:
+                    # Update job status to WAIT_FOR_VM
+                    await self.db.update_job_gcp(conn, job['job_id'], job['user_id'], JOB_STATUS_WAIT_FOR_VM)
+                    # Publish start signal to Pub/Sub
+                    await self.pubsub.publish_start_signal(config.job_start_topic, job)
+
                 # Log the activity
                 logger.info(f"Job '{job['job_id']}' status changed from {JOB_STATUS_NEW} to {JOB_STATUS_WAIT_FOR_VM}")
             await asyncio.sleep(10)
@@ -133,18 +133,26 @@ class Scheduler:
 
     async def _monitor_and_detach_vms(self):
         """Monitor VMs that started running and detach them from the MIG."""
+
+        async def _detach_vm_and_update_job_status(job):
+            """Detach a VM from the MIG and update job status in the database."""
+            async with self.db.transaction as conn:
+                await self.db.update_job_gcp(conn, job['job_id'], job['user_id'], JOB_STATUS_DETACHED_VM)
+                await self.mig_client.detach_vm(job['gcp']['vm_name'], job['job_id'])
+
         logger.info("Starting VM monitoring and detaching")
         while self.running:
             # Get a list of VMs to detach
             jobs = await self.db.get_jobs_by_status_gcp(JOB_STATUS_FOUND_VM)
-            # Detach VMs in parallel and update their status in the database
+
             logger.info("_monitor_and_detach_vms: start")
             logger.info(f"Detaching VMs: "
                         f"{[job['gcp']['vm_name'] for job in jobs]} for jobs:"
                         f" {[job['job_id'] for job in jobs]}")
-            await asyncio.gather(*[self.mig_client.detach_vm(job['gcp']['vm_name'], job['job_id']) for job in jobs])
-            await asyncio.gather(*[self.db.update_job_gcp(job['job_id'], job['user_id'],
-                                                          JOB_STATUS_DETACHED_VM) for job in jobs])
+
+            # Detach VMs from the MIG and update job status in the database
+            await asyncio.gather(*[_detach_vm_and_update_job_status(job) for job in jobs])
+
             logger.info('_monitor_and_detach_vms: end')
             await asyncio.sleep(7)
 
@@ -186,7 +194,9 @@ class Scheduler:
                 self.mig_client.remove_vm_from_cache(region, vm_name)
 
             # Update job status and timestamp in the database
-            await self.db.update_job_gcp(job_id, user_id, new_status, vm_name, region)
+            async with self.db.transaction as conn:
+                await self.db.update_job_gcp(conn, job_id, user_id, new_status, vm_name, region)
+
             logger.info(f"Job '{job_id}' status changed from {old_status} to {new_status}; region: {region}; VM name: {vm_name}")
 
         self.pubsub.heartbeat_callback = heartbeat_callback
