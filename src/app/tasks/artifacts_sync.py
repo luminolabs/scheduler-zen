@@ -34,3 +34,5 @@ async def sync_job_artifacts(db: Database):
         await asyncio.gather(*[db.update_job_artifacts(*result) for result in results if result])
     except Exception as e:
         logger.error(f"Error in artifacts sync: {str(e)}")
+
+    logger.info("Completed artifacts sync")
