@@ -128,7 +128,7 @@ async def create_job_gcp(job: CreateJobRequestGCP) -> Dict[str, Any]:
     # Add the job to the scheduler
     job_id = await gcp_scheduler.add_job(job.dict())
     logger.info(f"Added new job with ID: {job_id}")
-    return {"job_id": job_id, "status": "new"}
+    return {"job_id": job.job_id, "status": "new"}
 
 
 @app.post("/jobs/lum")
@@ -147,7 +147,7 @@ async def create_job_lum(job: CreateJobRequestLUM) -> Dict[str, Any]:
     # Add the job to the scheduler
     job_id = await lum_scheduler.add_job(job.dict())
     logger.info(f"Added new job with ID: {job_id}")
-    return {"job_id": job_id, "status": "new"}
+    return {"job_id": job.job_id, "status": "new"}
 
 
 @app.post("/jobs/gcp/stop/{job_id}/{user_id}")
