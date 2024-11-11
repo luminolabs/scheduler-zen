@@ -52,16 +52,19 @@ class Scheduler:
         Returns:
             str: The ID of the newly added job.
         """
-        # Add job to the database
-        job_id = await self.db.add_job_lum(job_data)
-        # Create job on the blockchain
-        tx_hash = await self.job_manager_client.create_job(job_data['args'])
-        # Update job with transaction hash
-        await self.db.update_job_lum(job_id, job_data['user_id'], tx_hash=tx_hash)
-        # Log the job creation and return the job ID
-        logger.info(f"Added new LUM job with ID: {job_id}; "
-                    f"tx_hash: {tx_hash}; status: {JOB_STATUS_NEW}")
-        return job_id
+        # Wrap the job creation in a transaction so that we can roll back if the blockchain transaction fails
+        async with self.db.pool.acquire() as conn:
+            async with conn.transaction():
+                # Add job to the database
+                job_id = await self.db.add_job_lum(job_data, conn=conn)
+                # Create job on the blockchain
+                tx_hash = await self.job_manager_client.create_job(job_data['args'])
+                # Update job with transaction hash
+                await self.db.update_job_lum(job_id, job_data['user_id'], tx_hash=tx_hash, conn=conn)
+                # Log the job creation and return the job ID
+                logger.info(f"Added new LUM job with ID: {job_id}; "
+                            f"tx_hash: {tx_hash}; status: {JOB_STATUS_NEW}")
+                return job_id
 
     async def _monitor_jobs(self) -> None:
         """Monitor and update the status of LUM jobs."""
