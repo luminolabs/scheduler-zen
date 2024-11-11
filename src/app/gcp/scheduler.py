@@ -69,7 +69,7 @@ class Scheduler:
         Args:
             job_data (Dict[str, Any]): The job data.
         """
-        async with self.db.transaction as conn:
+        async with self.db.transaction() as conn:
             await self.db.add_job_gcp(conn, job_data)
         logger.info(f"Added job id: {job_data['job_id']} for user id: {job_data['user_id']}, job data: {job_data}")
 
@@ -86,7 +86,7 @@ class Scheduler:
         """
         job = await self.db.get_job(job_id, user_id)
         if job and job['status'] == JOB_STATUS_RUNNING:
-            async with self.db.transaction as conn:
+            async with self.db.transaction() as conn:
                 await self.db.update_job_gcp(conn, job_id, user_id, JOB_STATUS_STOPPING)
                 await self.pubsub.publish_stop_signal(config.job_stop_topic, job_id)
             logger.info(f"Stopped job id: {job_id} for user id: {user_id}")
@@ -111,7 +111,7 @@ class Scheduler:
                 if 'override_env' in job['args']:
                     job['override_env'] = job['args'].pop('override_env')
 
-                async with self.db.transaction as conn:
+                async with self.db.transaction() as conn:
                     # Update job status to WAIT_FOR_VM
                     await self.db.update_job_gcp(conn, job['job_id'], job['user_id'], JOB_STATUS_WAIT_FOR_VM)
                     # Publish start signal to Pub/Sub
@@ -136,7 +136,7 @@ class Scheduler:
 
         async def _detach_vm_and_update_job_status(job):
             """Detach a VM from the MIG and update job status in the database."""
-            async with self.db.transaction as conn:
+            async with self.db.transaction() as conn:
                 await self.db.update_job_gcp(conn, job['job_id'], job['user_id'], JOB_STATUS_DETACHED_VM)
                 await self.mig_client.detach_vm(job['gcp']['vm_name'], job['job_id'])
 
@@ -194,7 +194,7 @@ class Scheduler:
                 self.mig_client.remove_vm_from_cache(region, vm_name)
 
             # Update job status and timestamp in the database
-            async with self.db.transaction as conn:
+            async with self.db.transaction() as conn:
                 await self.db.update_job_gcp(conn, job_id, user_id, new_status, vm_name, region)
 
             logger.info(f"Job '{job_id}' status changed from {old_status} to {new_status}; region: {region}; VM name: {vm_name}")

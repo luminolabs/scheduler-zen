@@ -47,7 +47,7 @@ class Database:
         if the external API call fails, we want to roll back the database changes.
         """
         async with self.pool.acquire() as conn:
-            transaction = conn.get()
+            transaction = conn.transaction()
             await transaction.start()
             try:
                 # Provide the connection to the caller
