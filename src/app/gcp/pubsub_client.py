@@ -34,9 +34,6 @@ class PubSubClient:
         """Start PubSub processes."""
         self.running = True
         logger.info("PubSub processes started")
-        await asyncio.gather(
-            self._process_heartbeats(),
-        )
 
     async def stop(self) -> None:
         """Stop PubSub processes."""
@@ -70,33 +67,3 @@ class PubSubClient:
         data = json.dumps({"action": "stop", "job_id": job_id}).encode("utf-8")
         future = self.publisher.publish(topic_path, data)
         await asyncio.to_thread(future.result)
-
-    async def _process_heartbeats(self):
-        """Process incoming heartbeats using the heartbeat callback function."""
-        while True:
-            if not self.running:
-                break
-            message = await self.heartbeats_queue.get()
-            await self.heartbeat_callback(message.data)
-            message.ack()
-
-    async def listen_for_heartbeats(self, subscription_name: str) -> None:
-        """
-        Listen for heartbeats on a specified Pub/Sub subscription.
-
-        Args:
-            subscription_name (str): The Pub/Sub subscription.
-        """
-        logger.info(f"Listening for heartbeats on subscription: {subscription_name}")
-        subscription_path = self.subscriber.subscription_path(self.project_id, subscription_name)
-
-        def callback_wrapper(message):
-            asyncio.run(self.heartbeats_queue.put(message))
-
-        streaming_pull_future = self.subscriber.subscribe(subscription_path, callback=callback_wrapper)
-        with self.subscriber:
-            try:
-                await asyncio.to_thread(streaming_pull_future.result)
-            except Exception as e:
-                streaming_pull_future.cancel()
-                logger.error(f"Listening for heartbeats failed: {e}")

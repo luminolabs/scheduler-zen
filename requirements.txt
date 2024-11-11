@@ -9,7 +9,7 @@ asyncpg
 # GCP
 google-cloud-pubsub
 google-cloud-compute
-google-cloud-storage
+gcloud-aio-storage
 
 # Blockchain
 web3

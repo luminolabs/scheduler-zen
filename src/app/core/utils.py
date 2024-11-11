@@ -75,7 +75,7 @@ def setup_logger(name: str,
     :return: A logger instance
     """
     log_level = log_level or config.log_level
-    log_format = logging.Formatter(f'{config.env_name} - %(asctime)s - %(message)s')
+    log_format = logging.Formatter(f'{config.env_name} - %(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
     # Log to stdout and to file
     os.makedirs(os.path.dirname(config.log_file), exist_ok=True)
