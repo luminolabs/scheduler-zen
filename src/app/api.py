@@ -1,8 +1,8 @@
-import asyncio
 import json
 from contextlib import asynccontextmanager
 from typing import Dict, Any, List
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, HTTPException
 
 from app.core.config_manager import config
@@ -16,8 +16,7 @@ from app.gcp.pubsub_client import PubSubClient
 from app.gcp.scheduler import Scheduler as GCPScheduler
 from app.lum.job_manager_client import JobManagerClient
 from app.lum.scheduler import Scheduler as LUMScheduler
-from app.tasks.artifacts_sync import start_artifacts_sync_task
-from app.tasks.lum_receipt_sync import start_receipt_sync_task
+from app.tasks.artifacts_sync import sync_job_artifacts
 
 # Set up logging
 logger = setup_logger(__name__)
@@ -26,11 +25,8 @@ logger = setup_logger(__name__)
 def init_gcp_scheduler(db: Database):
     """Set up components needed for and initialize the scheduler."""
     pubsub = PubSubClient(config.gcp_project)
-
-    # Initialize the cluster orchestrator
     cluster_config = {k: config.gpu_regions[v] for k, v in config.mig_clusters.items()}
 
-    # The FakeMigManager simulates VMs and MIGs for testing
     if config.use_fake_mig_client:
         logger.info("Using FakeMigClient for local environment")
         mig_client = FakeMigClient()
@@ -38,34 +34,38 @@ def init_gcp_scheduler(db: Database):
         logger.info("Using real MigClient for non-local environment")
         mig_client = MigClient(config.gcp_project)
 
-    # Initialize the cluster orchestrator with max scale limits
-    cluster_orchestrator = ClusterOrchestrator(config.gcp_project, cluster_config, mig_client, config.max_scale_limits, db)
+    cluster_orchestrator = ClusterOrchestrator(
+        config.gcp_project,
+        cluster_config,
+        mig_client,
+        config.max_scale_limits,
+        db
+    )
     return GCPScheduler(db, pubsub, cluster_orchestrator, mig_client)
 
 
 def init_lum_job_manager_client():
-    """
-    Initialize the JobManagerClient for interacting with the LUM JobManager contract.
-    """
-    # Load the JobManager contract ABI
+    """Initialize the JobManagerClient for interacting with the LUM JobManager contract."""
     with open(config.lum_job_manager_abi_path) as f:
         job_manager_abi = json.loads(json.load(f)['result'])
-    # Initialize the JobManager client
-    job_manager_client = JobManagerClient(
+
+    return JobManagerClient(
         rpc_url=config.lum_rpc_url + config.alchemy_api_key,
         contract_address=config.lum_contract_address,
         abi=job_manager_abi,
         account_address=config.lum_account_address,
         account_private_key=config.lum_account_private_key
     )
-    return job_manager_client
 
 
-# Initialize the database and schedulers
+# Initialize components
 db = Database(config.database_url)
 job_manager_client = init_lum_job_manager_client()
 gcp_scheduler = init_gcp_scheduler(db)
 lum_scheduler = LUMScheduler(db, job_manager_client)
+
+# Initialize APScheduler
+background_task_scheduler = AsyncIOScheduler()
 
 
 async def raise_if_job_exists(job_id: str, user_id: str):
@@ -83,51 +83,63 @@ async def raise_if_job_exists(job_id: str, user_id: str):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Lifespan context manager. This is used to manage the application startup and shutdown.
-    """
-    # Application startup
+    """Lifespan context manager for application startup and shutdown."""
+    # Connect to the database
     logger.info("Connecting to the database")
     await db.connect()
+
+    # Start the schedulers
     logger.info("Starting schedulers")
-    asyncio.create_task(gcp_scheduler.start())
-    asyncio.create_task(lum_scheduler.start())
-    logger.info("Starting artifacts sync task")
-    start_artifacts_sync_task(db)
-    logger.info("Starting receipt sync task")
-    start_receipt_sync_task(db, job_manager_client)
+    await gcp_scheduler.start()
+    await lum_scheduler.start()
+
+    # Configure GCP scheduler to run every 10 seconds
+    background_task_scheduler.add_job(
+        gcp_scheduler.run_cycle,
+        trigger='interval',
+        seconds=10,
+    )
+    # Configure LUM scheduler to run every 10 seconds
+    background_task_scheduler.add_job(
+        lum_scheduler.run_cycle,
+        trigger='interval',
+        seconds=10,
+    )
+    # Configure artifacts sync to run every 1 minute
+    background_task_scheduler.add_job(
+        sync_job_artifacts,
+        trigger='interval',
+        args=[db],
+        minutes=1,
+    )
+
+    logger.info("Starting background tasks")
+    background_task_scheduler.start()
+
     yield
+
     # Application shutdown
+    logger.info("Stopping background tasks")
+    background_task_scheduler.shutdown()
+
     logger.info("Stopping schedulers")
     await gcp_scheduler.stop()
     await lum_scheduler.stop()
+
     logger.info("Disconnecting from the database")
     await db.close()
 
-
-# Create the FastAPI application with the lifespan context manager
+# Create FastAPI application
 app = FastAPI(lifespan=lifespan)
-
 
 @app.post("/jobs/gcp")
 async def create_job_gcp(job: CreateJobRequestGCP) -> Dict[str, Any]:
-    """
-    Create a new job.
-
-    Args:
-        job (CreateJobRequestGCP): The job details.
-
-    Returns:
-        dict: A dictionary containing the job_id of the added job.
-    """
-    # Check if cluster exists
+    """Create a new GCP job."""
     if not gcp_scheduler.cluster_orchestrator.cluster_exists(job.cluster):
         raise HTTPException(status_code=422, detail=f"Cluster '{job.cluster}' does not exist")
-    # Check if job_id already exists
     await raise_if_job_exists(job.job_id, job.user_id)
-    # Add the job to the scheduler
-    job_id = await gcp_scheduler.add_job(job.dict())
-    logger.info(f"Added new job with ID: {job_id}")
+    await gcp_scheduler.add_job(job.dict())
+    logger.info(f"Added new job with ID: {job.job_id}")
     return {"job_id": job.job_id, "status": "new"}
 
 

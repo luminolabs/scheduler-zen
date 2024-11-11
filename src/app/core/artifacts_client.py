@@ -1,15 +1,13 @@
 import json
-from typing import Optional
+from typing import Optional, Tuple
 
-from google.cloud.exceptions import NotFound
-from google.cloud.storage import Client
+from gcloud.aio.storage import Storage
 
 from app.core.config_manager import config
 from app.core.database import Database
 from app.core.utils import is_local_env, setup_logger, PROVIDER_GCP, PROVIDER_LUM
 
 logger = setup_logger(__name__)
-
 
 # The prefix for the storage buckets;
 # the full bucket name will be the prefix + the multi-region
@@ -45,20 +43,24 @@ def get_results_bucket(region: Optional[str] = 'us-central1') -> str:
     return f'{STORAGE_BUCKET_PREFIX}-{multi_region}'  # multi-region bucket; ie. 'pipeline-zen-jobs-us'
 
 
-async def pull_artifacts_meta_from_gcs(job_id: str, user_id: str, db: Database, gcs: Client) -> Optional[dict]:
+async def pull_artifacts_meta_from_gcs(
+        job_id: str, user_id: str, db: Database) -> Optional[Tuple[str, str, dict]]:
     """
-    Pull the artifacts meta from GCS.
+    Pull the artifacts meta from GCS using an async client.
 
     Args:
         job_id (str): The job ID.
         user_id (str): The user ID.
         db (Database): The database instance.
-        gcs (Client): The GCS client.
     Returns:
-        dict: The artifacts data
+        Optional[Tuple[str, str, dict]]: The job ID, user ID, and the artifacts meta if found, None otherwise.
     """
     # Get job region from DB
     job = await db.get_job(job_id, user_id)
+
+    # Initialize the async GCS client
+    storage = Storage()
+
     # Construct the job-meta.json object location in GCS
     if job["provider"] == PROVIDER_GCP:
         object_name = f'{user_id}/{job_id}/job-meta.json'
@@ -68,12 +70,17 @@ async def pull_artifacts_meta_from_gcs(job_id: str, user_id: str, db: Database, 
         region = 'us-central1'
     else:
         raise SystemError(f"Unknown provider: {job['provider']}")
-    # Read and return the job-meta.json object as a dict
+
+    # Get the results bucket name based on the job region
     bucket_name = get_results_bucket(region)
-    bucket = gcs.bucket(bucket_name)
-    try:
-        blob = bucket.blob(object_name)
-        return json.loads(blob.download_as_bytes())
-    except NotFound:
-        logger.error(f"Blob not found: {object_name} in bucket {bucket_name}")
+
+    # Download and parse the job-meta.json object
+    blob = await storage.download(bucket_name, object_name)
+    if not blob:
         return None
+    result = json.loads(blob.decode('utf-8'))
+
+    # Close the storage client
+    await storage.close()
+
+    return job_id, user_id, result

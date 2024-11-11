@@ -1,7 +1,8 @@
 import asyncio
-from typing import Dict, Any
+from typing import Dict, Any, Optional, Tuple
 
-from app.core.config_manager import config
+from web3.exceptions import TransactionNotFound
+
 from app.core.database import Database
 from app.core.utils import (
     JOB_STATUS_NEW, JOB_STATUS_RUNNING,
@@ -10,6 +11,7 @@ from app.core.utils import (
 from app.lum.job_manager_client import JobManagerClient
 
 logger = setup_logger(__name__)
+
 
 class Scheduler:
     """Manages the scheduling and monitoring of LUM jobs."""
@@ -28,19 +30,31 @@ class Scheduler:
         logger.info("LUM Scheduler initialized")
 
     async def start(self) -> None:
-        """Start the scheduler to manage jobs."""
-        self.running = True
+        """Start the scheduler and verify blockchain connection."""
         if not await self.job_manager_client.web3.is_connected():
             raise ConnectionError("Unable to connect to the Ethereum network.")
+        self.running = True
         logger.info("LUM Scheduler started")
-        await asyncio.gather(
-            self._monitor_jobs()
-        )
 
     async def stop(self) -> None:
         """Stop the scheduler."""
         self.running = False
         logger.info("LUM Scheduler stopped")
+
+    async def run_cycle(self) -> None:
+        """Execute one complete cycle of LUM scheduler tasks."""
+        if not self.running:
+            return
+
+        try:
+            logger.info("Starting LUM scheduler cycle")
+            # Monitor jobs for status updates
+            await self._update_job_statuses()
+            # Process any pending transaction receipts
+            await self._process_pending_receipts()
+            logger.info("Completed LUM scheduler cycle")
+        except Exception as e:
+            logger.error(f"Error in LUM scheduler cycle: {str(e)}")
 
     async def add_job(self, job_data: Dict[str, Any]) -> None:
         """
@@ -49,36 +63,143 @@ class Scheduler:
         Args:
             job_data (Dict[str, Any]): The job data including workflow and args.
         """
-        # Wrap the job creation in a transaction so that we can roll back if the blockchain transaction fails
+        # Wrap job creation in a transaction so we can roll back if blockchain transaction fails
         async with self.db.transaction() as conn:
-            # Add job to the database
+            # Add job to database
             await self.db.add_job_lum(conn, job_data)
-            # Create job on the blockchain
+            # Create job on blockchain
             tx_hash = await self.job_manager_client.create_job(job_data['args'])
             # Update job with transaction hash
-            await self.db.update_job_lum(conn, job_data['job_id'], job_data['user_id'], tx_hash=tx_hash)
-        # Log the job creation and return the job ID
-        logger.info(f"Added LUM job id: {job_data['job_id']} for user id: {job_data['user_id']}, "
-                    f"job data: {job_data}")
+            await self.db.update_job_lum(
+                conn,
+                job_data['job_id'],
+                job_data['user_id'],
+                tx_hash=tx_hash
+            )
 
-    async def _monitor_jobs(self) -> None:
+        logger.info(
+            f"Added LUM job id: {job_data['job_id']} "
+            f"for user id: {job_data['user_id']}, "
+            f"job data: {job_data}"
+        )
+
+    async def _update_job_statuses(self) -> None:
         """Monitor and update the status of LUM jobs."""
-        logger.info("Starting LUM job monitoring")
-        while self.running:
+        # Get all non-final state jobs that have transaction hashes
+        active_jobs = await self.db.get_jobs_by_status_lum([
+            JOB_STATUS_NEW,
+            JOB_STATUS_WAIT_FOR_VM,
+            JOB_STATUS_RUNNING
+        ])
+        # Process each job
+        await asyncio.gather(*[self._update_job_status_single(job) for job in active_jobs])
+
+    async def _update_job_status_single(self, job: Dict[str, Any]) -> None:
+        """
+        Process a single LUM job.
+
+        Args:
+            job (Dict[str, Any]): The job to process.
+        """
+        # Get current status from blockchain
+        new_status = await self.job_manager_client.get_job_status(
+            job['lum']['lum_id']
+        )
+        # Update status if changed
+        if new_status != job['status']:
+            async with self.db.transaction() as conn:
+                await self.db.update_job_lum(
+                    conn,
+                    job['job_id'],
+                    job['user_id'],
+                    status=new_status
+                )
+            logger.info(
+                f"Updated LUM job {job['job_id']} status "
+                f"from {job['status']} to {new_status}"
+            )
+
+    async def _get_tx_receipt(self, tx_hash: str,
+                              timeout: int = 120, poll_interval: int = 2) \
+            -> Optional[Tuple[str, Dict[str, Any]]]:
+        """
+        Wait for a transaction receipt with timeout.
+
+        Args:
+            tx_hash (str): The transaction hash
+            timeout (int): Maximum time to wait in seconds
+            poll_interval (int): Time between polls in seconds
+        Returns:
+            Optional[Tuple[str, Dict[str, Any]]]: The transaction hash and receipt if found, None otherwise
+        """
+        for retry_counter in range(timeout // poll_interval):
             try:
-                # Get all jobs that are not in a final state
-                active_jobs = await self.db.get_jobs_by_status_lum([JOB_STATUS_NEW, JOB_STATUS_WAIT_FOR_VM, JOB_STATUS_RUNNING])
-                # Monitor the status of each job
-                for job in active_jobs:
-                    new_status = await self.job_manager_client.get_job_status(job['lum']['lum_id'])
-                    if new_status != job['status']:
-                        # Update the job status in the database
-                        async with self.db.transaction() as conn:
-                            await self.db.update_job_lum(conn, job['job_id'], job['user_id'], status=new_status)
-                        logger.info(f"Updated LUM job {job['job_id']} status from {job['status']} to {new_status}")
-                await asyncio.sleep(config.lum_job_monitor_interval_s)  # Wait before the next monitoring cycle
-            except Exception as e:
-                # Log the error and continue monitoring;
-                # hopefully it's a transient issue, or it affects only some jobs
-                logger.error(f"Error monitoring LUM jobs: {str(e)}")
-                await asyncio.sleep(config.lum_job_monitor_interval_s)
+                receipt = await self.job_manager_client.web3.eth.get_transaction_receipt(tx_hash)
+                if receipt:
+                    return tx_hash, receipt
+            except TransactionNotFound:
+                logger.info(f"Transaction {tx_hash} not found yet, attempt #{retry_counter}, waiting...")
+            await asyncio.sleep(poll_interval)
+        logger.error(f"Timed out waiting for receipt for transaction {tx_hash}")
+        return None
+
+    def _get_lum_id_from_receipt(self, receipt: Dict[str, Any]) -> Optional[int]:
+        """
+        Extract the LUM ID from a transaction receipt.
+
+        The LUM ID is the protocol-specific job ID.
+
+        Args:
+            receipt (Dict[str, Any]): The transaction receipt
+        Returns:
+            Optional[int]: The LUM ID if found, None otherwise
+        """
+        event_signature_hash = self.job_manager_client.event_signature_hashes.get('JobCreated')
+        if not event_signature_hash:
+            logger.error("JobCreated event signature not found")
+            return None
+
+        for log in receipt['logs']:
+            if log['topics'][0].hex() == event_signature_hash:
+                # Extract the job ID from the log data (second topic)
+                return int(log['topics'][1].hex(), 16)
+        return None
+
+    async def _process_pending_receipts(self) -> None:
+        """
+        Process all pending receipts for NEW jobs.
+        """
+        # Get all NEW jobs that have a transaction hash but no LUM ID
+        jobs = await self.db.get_pending_lum_receipts()
+        pending_jobs = [job for job in jobs
+                        if job['lum']['tx_hash'] and not job['lum']['lum_id']]
+
+        if not pending_jobs:
+            return
+
+        logger.info(f"Processing {len(pending_jobs)} pending receipts")
+
+        # Map tx_hash to job dict
+        tx_hash_to_job = {job['lum']['tx_hash']: job for job in pending_jobs}
+
+        # Process receipts in parallel
+        results = await asyncio.gather(*[self._get_tx_receipt(job['lum']['tx_hash']) for job in pending_jobs])
+
+        # Wait for all receipt checks to complete
+        for result in results:
+            # Skip if no result, we logged an error in _get_tx_receipt()
+            if not result:
+                continue
+
+            # Pull out tx_hash and receipt
+            tx_hash, receipt = result
+            # Get the job from the mapping
+            job = tx_hash_to_job[tx_hash]
+            # Extract the LUM ID from the receipt
+            lum_id = self._get_lum_id_from_receipt(receipt)
+            if lum_id:
+                async with self.db.transaction() as conn:
+                    await self.db.update_job_lum(conn, job['job_id'], job['user_id'], lum_id=lum_id)
+                logger.info(f"Updated job {job['job_id']} with LUM ID {lum_id}")
+            else:
+                logger.error(f"Failed to extract LUM ID from receipt for job {job['job_id']}")
