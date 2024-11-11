@@ -5,6 +5,7 @@ from app.gcp.utils import get_mig_name_from_cluster_and_region
 
 logger = setup_logger(__name__)
 
+
 class FakeMigClient:
     """
     Simulates the behavior of MigClient for local development.

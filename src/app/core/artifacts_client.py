@@ -43,10 +43,13 @@ def get_results_bucket(region: Optional[str] = 'us-central1') -> str:
     return f'{STORAGE_BUCKET_PREFIX}-{multi_region}'  # multi-region bucket; ie. 'pipeline-zen-jobs-us'
 
 
-async def pull_artifacts_meta_from_gcs(
+async def pull_artifacts_meta_from_gcs_task(
         job_id: str, user_id: str, db: Database) -> Optional[Tuple[str, str, dict]]:
     """
     Pull the artifacts meta from GCS using an async client.
+
+    Note: This is supposed to be a task that is run in parallel,
+        so we will return the inputs to the task as well.
 
     Args:
         job_id (str): The job ID.

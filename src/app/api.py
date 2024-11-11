@@ -24,7 +24,7 @@ logger = setup_logger(__name__)
 
 def init_gcp_scheduler(db: Database):
     """Set up components needed for and initialize the scheduler."""
-    pubsub = PubSubClient(config.gcp_project)
+    pubsub = PubSubClient(config.gcp_project, config.heartbeat_subscription)
     cluster_config = {k: config.gpu_regions[v] for k, v in config.mig_clusters.items()}
 
     if config.use_fake_mig_client:
