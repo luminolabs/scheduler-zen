@@ -22,6 +22,9 @@ lum_account_private_key:  # Set this in your .env file: `SZ_LUM_ACCOUNT_PRIVATE_
 lum_job_monitor_interval_s: 60  # seconds
 alchemy_api_key:  # Set this in your .env file: `SZ_ALCHEMY_API_KEY=.....`
 
+# Domain logic
+recently_completed_job_threshold_minutes: 10
+
 # Database
 # Set these in your .env file when running on a local env
 # On non-local envs, we store these in a GCP secret

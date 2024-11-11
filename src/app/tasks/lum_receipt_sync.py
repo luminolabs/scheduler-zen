@@ -88,7 +88,8 @@ async def process_pending_receipts(db: Database,
             if receipt:
                 lum_id = await extract_lum_id_from_receipt(job_manager_client, receipt)
                 if lum_id:
-                    await db.update_job_lum(job['job_id'], job['user_id'], lum_id=lum_id)
+                    async with db.transaction() as conn:
+                        await db.update_job_lum(conn, job['job_id'], job['user_id'], lum_id=lum_id)
                     logger.info(f"Updated job {job['job_id']} with LUM ID {lum_id}")
         except Exception as e:
             logger.error(f"Error processing receipt for job {job['job_id']}: {str(e)}")
