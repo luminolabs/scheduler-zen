@@ -1,9 +1,6 @@
 import asyncio
 
-from google.cloud import storage
-
 from app.core.artifacts_client import pull_artifacts_meta_from_gcs_task
-from app.core.config_manager import config
 from app.core.database import Database
 from app.core.utils import setup_logger, NON_TERMINAL_JOB_STATUSES
 
@@ -23,12 +20,9 @@ async def sync_job_artifacts(db: Database):
         recently_completed_jobs = await db.get_recently_completed_jobs()
         all_jobs = lum_jobs + gcp_jobs + recently_completed_jobs
 
-        # Initialize GCS client
-        gcs_client = storage.Client(project=config.gcp_project)
-
         # Pull artifacts in parallel
         results = await asyncio.gather(
-            *[pull_artifacts_meta_from_gcs_task(job['job_id'], job['user_id'], db, gcs_client) for job in all_jobs])
+            *[pull_artifacts_meta_from_gcs_task(job['job_id'], job['user_id'], db) for job in all_jobs])
 
         # Update artifacts in DB in parallel
         await asyncio.gather(*[db.update_job_artifacts(*result) for result in results if result])
