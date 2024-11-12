@@ -420,8 +420,7 @@ class Database:
         logger.info(f"Retrieved {len(jobs)} jobs for user id: {user_id}, job ids: {job_ids}")
         return jobs
 
-    @staticmethod
-    async def update_job_artifacts(conn: asyncpg.Connection,
+    async def update_job_artifacts(self,
                                    job_id: str, user_id: str, data: Dict[str, Any]) -> None:
         """
         Update the artifacts of a job in the database.
@@ -434,14 +433,15 @@ class Database:
             user_id (str): The ID of the user.
             data (Dict[str, Any]): The new artifact data.
         """
-        await conn.execute('''
-            INSERT INTO jobs_artifacts (job_id, user_id, data)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (job_id, user_id) DO UPDATE
-            SET data = $3, updated_at = CURRENT_TIMESTAMP
-        ''', job_id, user_id, json.dumps(data))
+        async with self.pool.acquire() as conn:
+            await conn.execute('''
+                INSERT INTO jobs_artifacts (job_id, user_id, data)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (job_id, user_id) DO UPDATE
+                SET data = $3, updated_at = CURRENT_TIMESTAMP
+            ''', job_id, user_id, json.dumps(data))
 
-        logger.info(f"Updated job id: {job_id}, user id: {user_id} with new artifacts: {data}")
+            logger.info(f"Updated job id: {job_id}, user id: {user_id} with new artifacts: {data}")
 
     async def get_pending_lum_receipts(self) -> List[Dict[str, Any]]:
         """
