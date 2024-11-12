@@ -25,7 +25,8 @@ async def sync_job_artifacts(db: Database):
             *[pull_artifacts_meta_from_gcs_task(job['job_id'], job['user_id'], db) for job in all_jobs])
 
         # Update artifacts in DB in parallel
-        await asyncio.gather(*[db.update_job_artifacts(*result) for result in results if result])
+        async with db.transaction() as conn:
+            await asyncio.gather(*[db.update_job_artifacts(conn, *result) for result in results if result])
     except Exception as e:
         logger.error(f"Error in artifacts sync: {str(e)}")
 
