@@ -47,7 +47,7 @@ def init_gcp_scheduler(db: Database):
 def init_lum_job_manager_client():
     """Initialize the JobManagerClient for interacting with the LUM JobManager contract."""
     with open(config.lum_job_manager_abi_path) as f:
-        job_manager_abi = json.loads(json.load(f)['result'])
+        job_manager_abi = json.load(f)
 
     return JobManagerClient(
         rpc_url=config.lum_rpc_url + config.alchemy_api_key,

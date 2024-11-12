@@ -134,10 +134,19 @@ class Scheduler:
     async def _process_heartbeats(self) -> None:
         """Process any queued heartbeats."""
         logger.info("Starting processing heartbeats")
-        while not self.pubsub.heartbeats_queue.empty():
-            message = await self.pubsub.heartbeats_queue.get()
-            await self._handle_heartbeat(message.data)
-            message.ack()
+
+        # Process messages in a loop
+        while True:
+            message = self.pubsub.get_next_message()
+            if message is None:
+                break
+            try:
+                await self._handle_heartbeat(message.data)
+                message.ack()
+            except Exception as e:
+                logger.error(f"Error processing heartbeat: {str(e)}")
+                message.nack()
+
         logger.info("Completed processing heartbeats")
 
     async def _monitor_and_scale_clusters(self) -> None:
@@ -161,12 +170,12 @@ class Scheduler:
             except Exception as e:
                 logger.error(f"Error detaching VM for job {job['job_id']}: {str(e)}")
 
-    async def _handle_heartbeat(self, message_data: str) -> None:
+    async def _handle_heartbeat(self, message_data: bytes) -> None:
         """
         Process a single heartbeat message and update job status.
 
         Args:
-            message_data (str): JSON-encoded heartbeat data.
+            message_data (bytes): JSON-encoded heartbeat data.
         """
         data = json.loads(message_data)
         job_id = data['job_id']

@@ -249,7 +249,8 @@ class Database:
         # Build the SQL query
         sql = f'''
         {SELECT_AND_JOIN_JOBS_SQL}
-        WHERE provider = $1 AND l.tx_hash IS NOT NULL AND j.status = ANY($2)
+        WHERE provider = $1 AND j.status = ANY($2)
+        AND l.tx_hash IS NOT NULL AND l.lum_id IS NOT NULL
         '''
         # Execute the query
         async with self.pool.acquire() as conn:

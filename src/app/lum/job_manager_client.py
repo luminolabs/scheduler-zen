@@ -69,7 +69,7 @@ class JobManagerClient:
         logger.debug(f"Generated event signatures: {event_signature_hashes}")
         return event_signature_hashes
 
-    async def get_job_status(self, lum_id: str) -> str:
+    async def get_job_status(self, lum_id: int) -> str:
         """
         Fetches the status of a job by its ID.
 
