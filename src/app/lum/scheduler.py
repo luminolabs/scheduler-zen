@@ -1,4 +1,5 @@
 import asyncio
+import traceback
 from typing import Dict, Any, Optional, Tuple
 
 from google.api_core import retry_async
@@ -65,7 +66,7 @@ class Scheduler:
             await self._process_pending_receipts()
             logger.info("Completed LUM scheduler cycle")
         except Exception as e:
-            logger.error(f"Error in LUM scheduler cycle: {str(e)}")
+            logger.error(f"Error in LUM scheduler cycle, exception {str(e)}, traceback: {traceback.format_exc()}")
 
     async def add_job(self, job_data: Dict[str, Any]) -> None:
         """

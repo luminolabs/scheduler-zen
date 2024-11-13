@@ -1,4 +1,5 @@
 import json
+import traceback
 from typing import Any, Dict
 
 from app.core.config_manager import config
@@ -75,7 +76,8 @@ class Scheduler:
             await self._monitor_and_scale_clusters()
             logger.info("Completed scheduler cycle")
         except Exception as e:
-            logger.error(f"Error in scheduler cycle: {str(e)}")
+            logger.error(f"Error in scheduler cycle, "
+                         f"exception {str(e)}, traceback: {traceback.format_exc()}")
 
     async def add_job(self, job_data: Dict[str, Any]) -> None:
         """
@@ -144,7 +146,8 @@ class Scheduler:
                 await self._handle_heartbeat(message.data)
                 message.ack()
             except Exception as e:
-                logger.error(f"Error processing heartbeat with data: {message.data}, exception: {str(e)}")
+                logger.error(f"Error processing heartbeat with data: {message.data}, "
+                             f"exception {str(e)}, traceback: {traceback.format_exc()}")
                 message.nack()
 
         logger.info("Completed processing heartbeats")

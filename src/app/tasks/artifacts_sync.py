@@ -1,4 +1,5 @@
 import asyncio
+import traceback
 
 from app.core.artifacts_client import pull_artifacts_meta_from_gcs_task
 from app.core.database import Database
@@ -27,6 +28,6 @@ async def sync_job_artifacts(db: Database):
         # Update artifacts in DB in parallel
         await asyncio.gather(*[db.update_job_artifacts(*result) for result in results if result])
     except Exception as e:
-        logger.error(f"Error in artifacts sync: {str(e)}")
+        logger.error(f"Error in artifacts sync, exception {str(e)}, traceback: {traceback.format_exc()}")
 
     logger.info("Completed artifacts sync")

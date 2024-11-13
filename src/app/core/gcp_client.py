@@ -23,15 +23,16 @@ async def read_gcs_file(bucket_name: str, object_name: str, ignore_404: bool = F
     Returns:
         Optional[bytes]: The file content.
     """
+    storage_client = Storage()
     try:
-        storage_client = Storage()
         blob = await storage_client.download(bucket_name, object_name)
-        await storage_client.close()
         return blob
     except ClientResponseError as e:
         if e.status == 404 and ignore_404:
             return None
         raise e
+    finally:
+        await storage_client.close()
 
 
 def get_results_bucket(region: Optional[str] = 'us-central1') -> str:
