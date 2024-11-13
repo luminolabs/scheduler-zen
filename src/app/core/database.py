@@ -425,10 +425,7 @@ class Database:
         """
         Update the artifacts of a job in the database.
 
-        Note: Transaction is handled by the caller.
-
         Args:
-            conn (asyncpg.Connection): The database connection.
             job_id (str): The ID of the job.
             user_id (str): The ID of the user.
             data (Dict[str, Any]): The new artifact data.

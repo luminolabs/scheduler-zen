@@ -37,25 +37,18 @@ class PubSubClient:
         if not self.running:
             return
 
-        try:
-            with self.queue_lock:
-                self.heartbeats_queue.put(message)
-            logger.debug(f"Added message to queue: {message.data}")
-        except Exception as e:
-            logger.error(f"Error processing message: {str(e)}")
-            message.nack()
+        with self.queue_lock:
+            self.heartbeats_queue.put(message)
+        logger.debug(f"Added message to queue: {message.data}")
 
     def get_next_message(self) -> Optional[Message]:
         """
         Get the next message from the queue if available.
         This runs in the main event loop.
         """
-        try:
-            with self.queue_lock:
-                if not self.heartbeats_queue.empty():
-                    return self.heartbeats_queue.get_nowait()
-        except Exception as e:
-            logger.error(f"Error getting message from queue: {str(e)}")
+        with self.queue_lock:
+            if not self.heartbeats_queue.empty():
+                return self.heartbeats_queue.get_nowait()
         return None
 
     async def start(self) -> None:

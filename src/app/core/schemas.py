@@ -14,6 +14,7 @@ class CreateJobRequestBase(BaseModel):
     workflow: str
     args: Dict[str, Any]
 
+
 class CreateJobRequestGCP(CreateJobRequestBase):
     """
     Request schema for creating a job.

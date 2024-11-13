@@ -84,41 +84,40 @@ async def raise_if_job_exists(job_id: str, user_id: str):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for application startup and shutdown."""
-    # Connect to the database
+    # Application startup
+    logger.info("Starting application")
+
     logger.info("Connecting to the database")
     await db.connect()
 
-    # Start the schedulers
     logger.info("Starting schedulers")
     await gcp_scheduler.start()
     await lum_scheduler.start()
 
-    # Configure GCP scheduler to run every 10 seconds
+    logger.info("Starting background tasks")
     background_task_scheduler.add_job(
         gcp_scheduler.run_cycle,
         trigger='interval',
         seconds=10,
     )
-    # Configure LUM scheduler to run every 10 seconds
     background_task_scheduler.add_job(
         lum_scheduler.run_cycle,
         trigger='interval',
         seconds=10,
     )
-    # Configure artifacts sync to run every 1 minute
     background_task_scheduler.add_job(
         sync_job_artifacts,
         trigger='interval',
         args=[db],
         minutes=1,
     )
-
-    logger.info("Starting background tasks")
     background_task_scheduler.start()
 
     yield
 
     # Application shutdown
+    logger.info("Shutting down application")
+
     logger.info("Stopping background tasks")
     background_task_scheduler.shutdown()
 
@@ -129,12 +128,15 @@ async def lifespan(app: FastAPI):
     logger.info("Disconnecting from the database")
     await db.close()
 
+
 # Create FastAPI application
 app = FastAPI(lifespan=lifespan)
+
 
 @app.post("/jobs/gcp")
 async def create_job_gcp(job: CreateJobRequestGCP) -> Dict[str, Any]:
     """Create a new GCP job."""
+    # noinspection PyTypeChecker
     if not gcp_scheduler.cluster_orchestrator.cluster_exists(job.cluster):
         raise HTTPException(status_code=422, detail=f"Cluster '{job.cluster}' does not exist")
     await raise_if_job_exists(job.job_id, job.user_id)
@@ -157,6 +159,7 @@ async def create_job_lum(job: CreateJobRequestLUM) -> Dict[str, Any]:
     # Check if job_id already exists
     await raise_if_job_exists(job.job_id, job.user_id)
     # Add the job to the scheduler
+    # noinspection PyDeprecation
     job_id = await lum_scheduler.add_job(job.dict())
     logger.info(f"Added new job with ID: {job_id}")
     return {"job_id": job.job_id, "status": "new"}
