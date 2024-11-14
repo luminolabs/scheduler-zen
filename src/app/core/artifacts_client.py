@@ -1,47 +1,12 @@
 import json
 from typing import Optional, Tuple
 
-from aiohttp import ClientResponseError
-from gcloud.aio.storage import Storage
-
 from app.core.config_manager import config
 from app.core.database import Database
-from app.core.utils import is_local_env, setup_logger, PROVIDER_GCP, PROVIDER_LUM
+from app.core.gcp_client import read_gcs_file, get_results_bucket
+from app.core.utils import setup_logger, PROVIDER_GCP, PROVIDER_LUM
 
 logger = setup_logger(__name__)
-
-# The prefix for the storage buckets;
-# the full bucket name will be the prefix + the multi-region
-STORAGE_BUCKET_PREFIX = 'lum-pipeline-zen-jobs'
-
-
-def get_results_bucket(region: Optional[str] = 'us-central1') -> str:
-    """
-    Get the results bucket name.
-
-    We maintain buckets for the `us`, `asia`, and `europe` multi-regions.
-    We have a regional bucket for `me-west1`, because Middle East doesn't
-    have multi-region storage infrastructure on GCP.
-
-    ex.
-    - 'us-central1' -> 'pipeline-zen-jobs-us'
-    - 'me-west1' -> 'pipeline-zen-jobs-me-west1'
-
-    :return: The results bucket name
-    """
-    # If running locally, use the local dev bucket
-    if is_local_env():
-        return f'{STORAGE_BUCKET_PREFIX}-{config.local_env_name}'  # ie. 'pipeline-zen-jobs-local'
-
-    # Get multi-region from the region
-    # ie. 'us-central1' -> 'us'
-    multi_region = region.split('-')[0]
-
-    # Middle East doesn't have a multi-region storage configuration on GCP,
-    # so we maintain a regional bucket for `me-west1`.
-    if multi_region == 'me':
-        return f'{STORAGE_BUCKET_PREFIX}-{region}'  # regional bucket; ie. 'pipeline-zen-jobs-me-west1'
-    return f'{STORAGE_BUCKET_PREFIX}-{multi_region}'  # multi-region bucket; ie. 'pipeline-zen-jobs-us'
 
 
 async def pull_artifacts_meta_from_gcs_task(
@@ -62,9 +27,6 @@ async def pull_artifacts_meta_from_gcs_task(
     # Get job region from DB
     job = await db.get_job(job_id, user_id)
 
-    # Initialize the async GCS client
-    storage = Storage()
-
     # Construct the job-meta.json object location in GCS
     if job["provider"] == PROVIDER_GCP:
         object_name = f'{user_id}/{job_id}/job-meta.json'
@@ -77,18 +39,12 @@ async def pull_artifacts_meta_from_gcs_task(
 
     # Get the results bucket name based on the job region
     bucket_name = get_results_bucket(region)
-
     # Download and parse the job-meta.json object
-    try:
-        blob = await storage.download(bucket_name, object_name)
-        result = json.loads(blob.decode('utf-8'))
-        return job_id, user_id, result
-    except ClientResponseError as e:
-        if e.status == 404:
-            # Ignore 404 errors, as they are expected for new jobs
-            pass
-        else:
-            logger.error(f"Error downloading job-meta.json for job {job_id}: {str(e)}")
-    finally:
-        # Close the storage client
-        await storage.close()
+    blob = await read_gcs_file(bucket_name, object_name, ignore_404=True)
+    if not blob:
+        return None
+    result = json.loads(blob.decode('utf-8'))
+    # Return the job ID, user ID along with the result
+    # because we'll need to associate the result with the job
+    # in the calling function
+    return job_id, user_id, result

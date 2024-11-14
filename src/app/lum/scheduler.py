@@ -1,6 +1,8 @@
 import asyncio
+import traceback
 from typing import Dict, Any, Optional, Tuple
 
+from google.api_core import retry_async
 from web3.exceptions import TransactionNotFound
 
 from app.core.database import Database
@@ -11,6 +13,16 @@ from app.core.utils import (
 from app.lum.job_manager_client import JobManagerClient
 
 logger = setup_logger(__name__)
+
+# Configure the retry decorator for transaction receipt checks
+retry_config_tx_receipt = retry_async.AsyncRetry(
+    attempts=60,                    # Maximum number of retry attempts
+    delay=1,                        # Initial delay between retries (in seconds)
+    exponential_backoff=False,      # Don't use exponential backoff
+    exceptions={                    # Specify which exceptions to retry
+        TransactionNotFound: True,
+    }
+)
 
 
 class Scheduler:
@@ -54,7 +66,7 @@ class Scheduler:
             await self._process_pending_receipts()
             logger.info("Completed LUM scheduler cycle")
         except Exception as e:
-            logger.error(f"Error in LUM scheduler cycle: {str(e)}")
+            logger.error(f"Error in LUM scheduler cycle, exception {str(e)}, traceback: {traceback.format_exc()}")
 
     async def add_job(self, job_data: Dict[str, Any]) -> None:
         """
@@ -119,28 +131,19 @@ class Scheduler:
                 f"from {job['status']} to {new_status}"
             )
 
-    async def _get_tx_receipt(self, tx_hash: str,
-                              timeout: int = 120, poll_interval: int = 2) \
-            -> Optional[Tuple[str, Dict[str, Any]]]:
+    @retry_config_tx_receipt
+    async def _get_tx_receipt(self, tx_hash: str) -> Optional[Tuple[str, Dict[str, Any]]]:
         """
         Wait for a transaction receipt with timeout.
 
         Args:
             tx_hash (str): The transaction hash
-            timeout (int): Maximum time to wait in seconds
-            poll_interval (int): Time between polls in seconds
         Returns:
             Optional[Tuple[str, Dict[str, Any]]]: The transaction hash and receipt if found, None otherwise
         """
-        for retry_counter in range(timeout // poll_interval):
-            try:
-                receipt = await self.job_manager_client.web3.eth.get_transaction_receipt(tx_hash)
-                if receipt:
-                    return tx_hash, receipt
-            except TransactionNotFound:
-                logger.info(f"Transaction {tx_hash} not found yet, attempt #{retry_counter}, waiting...")
-            await asyncio.sleep(poll_interval)
-        logger.error(f"Timed out waiting for receipt for transaction {tx_hash}")
+        receipt = await self.job_manager_client.web3.eth.get_transaction_receipt(tx_hash)
+        if receipt:
+            return tx_hash, receipt
         return None
 
     def _get_lum_id_from_receipt(self, receipt: Dict[str, Any]) -> Optional[int]:

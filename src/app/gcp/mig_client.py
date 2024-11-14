@@ -2,7 +2,7 @@ import asyncio
 from typing import Optional
 
 from google.api_core import retry_async
-from google.api_core.exceptions import NotFound, BadRequest
+from google.api_core.exceptions import NotFound
 from google.cloud import compute_v1
 
 from app.core.config_manager import config
@@ -13,6 +13,20 @@ from app.gcp.utils import get_region_from_vm_name, get_mig_name_from_vm_name
 logger = setup_logger(__name__)
 
 
+# Configure the retry decorator
+retry_config = retry_async.AsyncRetry(
+    attempts=3,                     # Maximum number of retry attempts
+    delay=1,                        # Initial delay between retries (in seconds)
+    max_delay=5,                    # Maximum delay between retries
+    exponential_backoff=True,       # Use exponential backoff
+    exceptions={                    # Specify which exceptions to retry
+        Exception: True,
+    }
+)
+
+
+# noinspection PyTypeChecker
+# ^ added for compute_v1 function calls
 class MigClient:
     """Interfaces with the Google Cloud Managed Instance Groups (MIGs)."""
 
@@ -75,7 +89,7 @@ class MigClient:
             logger.warning(f"Zone not found for VM {vm_name} in region {region}")
             return None
 
-    @retry_async.AsyncRetry()
+    @retry_config
     async def set_target_size(self, region: str, mig_name: str, target_size: int) -> None:
         """
         Scale a specified MIG to a new size.
@@ -98,7 +112,7 @@ class MigClient:
             await asyncio.to_thread(operation.result)
             logger.info(f"MIG {mig_name}: resized to {target_size}")
 
-    @retry_async.AsyncRetry()
+    @retry_config
     async def get_current_target_size(self, region: str, mig_name: str) -> int:
         """
         Get the current target size of a specified MIG.
@@ -126,7 +140,7 @@ class MigClient:
                 # MIG not found is managed elsewhere; let's return 0 here
                 return 0
 
-    @retry_async.AsyncRetry()
+    @retry_config
     async def detach_vm(self, vm_name: str, job_id: str) -> None:
         """
         Detach a VM from its regional MIG.
@@ -151,9 +165,6 @@ class MigClient:
             )
             # Execute the request
             logger.info(f"MIG {mig_name}: detaching VM {vm_name} for job {job_id}")
-            try:
-                operation = await asyncio.to_thread(self.client.abandon_instances, request)
-            except BadRequest as e:
-                logger.error(f"MIG {mig_name}: failed to detach VM {vm_name}: {e}")
+            operation = await asyncio.to_thread(self.client.abandon_instances, request)
             await asyncio.to_thread(operation.result)
             logger.info(f"MIG {mig_name}: detached VM {vm_name} for job {job_id}")

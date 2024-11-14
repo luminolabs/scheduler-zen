@@ -1,4 +1,5 @@
 import json
+import traceback
 from typing import Any, Dict
 
 from app.core.config_manager import config
@@ -75,7 +76,8 @@ class Scheduler:
             await self._monitor_and_scale_clusters()
             logger.info("Completed scheduler cycle")
         except Exception as e:
-            logger.error(f"Error in scheduler cycle: {str(e)}")
+            logger.error(f"Error in scheduler cycle, "
+                         f"exception {str(e)}, traceback: {traceback.format_exc()}")
 
     async def add_job(self, job_data: Dict[str, Any]) -> None:
         """
@@ -144,7 +146,8 @@ class Scheduler:
                 await self._handle_heartbeat(message.data)
                 message.ack()
             except Exception as e:
-                logger.error(f"Error processing heartbeat: {str(e)}")
+                logger.error(f"Error processing heartbeat with data: {message.data}, "
+                             f"exception {str(e)}, traceback: {traceback.format_exc()}")
                 message.nack()
 
         logger.info("Completed processing heartbeats")
@@ -161,14 +164,11 @@ class Scheduler:
         jobs = await self.db.get_jobs_by_status_gcp(JOB_STATUS_FOUND_VM)
 
         for job in jobs:
-            try:
-                async with self.db.transaction() as conn:
-                    await self.db.update_job_gcp(
-                        conn, job['job_id'], job['user_id'], JOB_STATUS_DETACHED_VM)
-                    await self.mig_client.detach_vm(job['gcp']['vm_name'], job['job_id'])
-                logger.info(f"Detached VM {job['gcp']['vm_name']} for job {job['job_id']}")
-            except Exception as e:
-                logger.error(f"Error detaching VM for job {job['job_id']}: {str(e)}")
+            async with self.db.transaction() as conn:
+                await self.db.update_job_gcp(
+                    conn, job['job_id'], job['user_id'], JOB_STATUS_DETACHED_VM)
+                await self.mig_client.detach_vm(job['gcp']['vm_name'], job['job_id'])
+            logger.info(f"Detached VM {job['gcp']['vm_name']} for job {job['job_id']}")
 
     async def _handle_heartbeat(self, message_data: bytes) -> None:
         """
