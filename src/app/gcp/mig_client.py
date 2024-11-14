@@ -162,8 +162,8 @@ class MigClient:
             logger.info(f"MIG {mig_name}: detaching VM {vm_name} for job {job_id}")
             try:
                 operation = await asyncio.to_thread(self.client.abandon_instances, request)
+                await asyncio.to_thread(operation.result)
+                logger.info(f"MIG {mig_name}: detached VM {vm_name} for job {job_id}")
             except BadRequest:
                 # This is okay, the VM is already detached, or not found anymore
                 logger.warning(f"Coudn't detach VM {vm_name} for job {job_id}")
-            await asyncio.to_thread(operation.result)
-            logger.info(f"MIG {mig_name}: detached VM {vm_name} for job {job_id}")
