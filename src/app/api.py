@@ -140,7 +140,7 @@ async def create_job_gcp(job: CreateJobRequestGCP) -> Dict[str, Any]:
     if not gcp_scheduler.cluster_orchestrator.cluster_exists(job.cluster):
         raise HTTPException(status_code=422, detail=f"Cluster '{job.cluster}' does not exist")
     await raise_if_job_exists(job.job_id, job.user_id)
-    await gcp_scheduler.add_job(job.dict())
+    await gcp_scheduler.add_job(job.model_dump())
     logger.info(f"Added new job with ID: {job.job_id}")
     return {"job_id": job.job_id, "status": "new"}
 
@@ -159,8 +159,7 @@ async def create_job_lum(job: CreateJobRequestLUM) -> Dict[str, Any]:
     # Check if job_id already exists
     await raise_if_job_exists(job.job_id, job.user_id)
     # Add the job to the scheduler
-    # noinspection PyDeprecation
-    job_id = await lum_scheduler.add_job(job.dict())
+    job_id = await lum_scheduler.add_job(job.model_dump())
     logger.info(f"Added new job with ID: {job_id}")
     return {"job_id": job.job_id, "status": "new"}
 
@@ -178,7 +177,7 @@ async def stop_job(job_id: str, user_id: str) -> Dict[str, Any]:
         dict: A dictionary indicating the job was stopped.
     """
     # Check if job_id is a GCP job
-    if not db.is_gcp_job(job_id, user_id):
+    if not await db.is_gcp_job(job_id, user_id):
         raise HTTPException(status_code=422, detail=f"This job ID is not a GCP job: {job_id}")
     # Attempt to stop the job
     success = await gcp_scheduler.stop_job(job_id, user_id)

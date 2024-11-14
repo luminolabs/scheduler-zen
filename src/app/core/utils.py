@@ -4,7 +4,9 @@ import os
 import sys
 from datetime import datetime
 from logging.handlers import TimedRotatingFileHandler
-from typing import Any
+from typing import Any, Tuple, Type
+
+from google.api_core.retry_async import AsyncRetry as _AsyncRetry
 
 from app.core.config_manager import config
 
@@ -127,3 +129,12 @@ def recursive_json_decode(data: Any) -> Any:
         return [recursive_json_decode(item) for item in data]
     else:
         return data
+
+
+class AsyncRetry(_AsyncRetry):
+    """
+    Custom AsyncRetry class that takes in an exception list instead of a predicate function.
+    """
+    def __init__(self, exceptions: Tuple[Type[Exception]], **kwargs):
+        super().__init__(**kwargs)
+        self._predicate = lambda exc: isinstance(exc, exceptions)

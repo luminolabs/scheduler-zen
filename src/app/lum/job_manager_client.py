@@ -1,14 +1,13 @@
 import json
 from typing import Dict
 
-from google.api_core import retry_async
 from web3 import Web3, AsyncWeb3, AsyncHTTPProvider
 
 from app.core.utils import (
     JOB_STATUS_NEW, JOB_STATUS_WAIT_FOR_VM,
     JOB_STATUS_RUNNING,
     JOB_STATUS_COMPLETED, JOB_STATUS_FAILED,
-    setup_logger
+    setup_logger, AsyncRetry
 )
 
 # Set up logging
@@ -22,15 +21,13 @@ JOB_STATUSES = (
 )
 
 # Configure the retry decorator
-retry_config = retry_async.AsyncRetry(
-    attempts=3,                     # Maximum number of retry attempts
-    delay=1,                        # Initial delay between retries (in seconds)
-    max_delay=5,                    # Maximum delay between retries
-    exponential_backoff=True,       # Use exponential backoff
-    exceptions={                    # Specify which exceptions to retry
-        Exception: True
-    }
+retry_config = AsyncRetry(
+    attempts=5,
+    delay=0.1,
+    deadline=10,
+    exceptions=(Exception,)
 )
+
 
 class JobManagerClient:
     """
@@ -93,7 +90,7 @@ class JobManagerClient:
         # Send the signed transaction
         tx_hash = await self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
         logger.info(f"Transaction sent with tx_hash: {tx_hash.hex()}")
-        return tx_hash.hex()
+        return "0x" + tx_hash.hex()
 
     async def _get_create_job_tx_params(self) -> dict:
         """

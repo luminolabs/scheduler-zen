@@ -1,27 +1,22 @@
 import asyncio
 from typing import Optional
 
-from google.api_core import retry_async
 from google.api_core.exceptions import NotFound
 from google.cloud import compute_v1
 
 from app.core.config_manager import config
-from app.core.utils import setup_logger
+from app.core.utils import setup_logger, AsyncRetry
 from app.gcp.utils import get_region_from_vm_name, get_mig_name_from_vm_name
 
 # Set up logging
 logger = setup_logger(__name__)
 
-
 # Configure the retry decorator
-retry_config = retry_async.AsyncRetry(
-    attempts=3,                     # Maximum number of retry attempts
-    delay=1,                        # Initial delay between retries (in seconds)
-    max_delay=5,                    # Maximum delay between retries
-    exponential_backoff=True,       # Use exponential backoff
-    exceptions={                    # Specify which exceptions to retry
-        Exception: True,
-    }
+retry_config = AsyncRetry(
+    attempts=5,
+    delay=0.1,
+    deadline=10,
+    exceptions=(Exception,)
 )
 
 
