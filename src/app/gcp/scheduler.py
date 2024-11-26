@@ -11,6 +11,7 @@ from app.core.utils import (
     setup_logger, is_new_job_status_valid, JOB_STATUS_STOPPED
 )
 from app.gcp.cluster_orchestrator import ClusterOrchestrator
+from app.gcp.fake_mig_client import FakeMigClient
 from app.gcp.mig_client import MigClient
 from app.gcp.pubsub_client import PubSubClient
 from app.gcp.utils import get_region_from_vm_name
@@ -26,7 +27,7 @@ class Scheduler:
             db: Database,
             pubsub: PubSubClient,
             cluster_orchestrator: ClusterOrchestrator,
-            mig_client: MigClient
+            mig_client: MigClient | FakeMigClient
     ) -> None:
         """
         Initialize the Scheduler.
@@ -35,7 +36,7 @@ class Scheduler:
             db (Database): The database instance for job tracking.
             pubsub (PubSubClient): The PubSub client for messaging.
             cluster_orchestrator (ClusterOrchestrator): The cluster orchestrator.
-            mig_client (MigClient): The MIG client for managing MIGs.
+            mig_client (MigClient | FakeMigClient): The MIG client for VM management.
         """
         self.db = db
         self.pubsub = pubsub
@@ -49,6 +50,9 @@ class Scheduler:
         logger.info("Starting PubSub client")
         await self.pubsub.start()
         logger.info("PubSub client started")
+        if isinstance(self.mig_client, FakeMigClient):
+            logger.info("Starting FakeMigClient")
+            await self.mig_client.start()
         self.running = True
         logger.info("Scheduler started")
 
@@ -56,6 +60,9 @@ class Scheduler:
         """Stop the scheduler and async tasks for the scheduler."""
         await self.pubsub.stop()
         logger.info("PubSub client stopped")
+        if isinstance(self.mig_client, FakeMigClient):
+            await self.mig_client.stop()
+            logger.info("FakeMigClient stopped")
         self.running = False
         logger.info("Scheduler stopped")
 
