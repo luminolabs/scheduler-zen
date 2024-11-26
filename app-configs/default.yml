@@ -9,7 +9,9 @@ log_file: ./.logs/output.log
 # GCP
 gcp_project: neat-airport-407301
 job_start_topic: pipeline-zen-jobs-start
+job_start_subscription:  # only needed in local env, set in local.yml
 job_stop_topic: pipeline-zen-jobs-stop
+heartbeat_topic:  # only needed in local env, set in local.yml
 heartbeat_subscription: pipeline-zen-jobs-heartbeats-scheduler
 mig_api_rate_limit: 100  # concurrent requests for GCP MIG API
 
