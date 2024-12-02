@@ -1,6 +1,6 @@
 import pytest
 
-from app.api import app
+from app.main import app
 
 
 @pytest.mark.asyncio

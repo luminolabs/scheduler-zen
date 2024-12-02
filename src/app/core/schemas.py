@@ -30,8 +30,7 @@ class CreateJobRequestGCP(CreateJobRequestBase):
         Returns:
             str: The cluster name. ex: "4xa100-40gb" or "local" if using fake MIG manager.
         """
-        return f"{self.num_gpus}x{self.gpu_type}" if not config.use_fake_mig_client \
-            else "local"  # When using the fake MIG manager, we have a single "local" cluster
+        return f"{self.num_gpus}x{self.gpu_type}"
 
 
 class CreateJobRequestLUM(CreateJobRequestBase):

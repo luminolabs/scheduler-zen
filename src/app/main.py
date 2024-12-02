@@ -11,6 +11,7 @@ from app.core.schemas import CreateJobRequestGCP, ListUserJobsRequest, CreateJob
 from app.core.utils import setup_logger
 from app.gcp.cluster_orchestrator import ClusterOrchestrator
 from app.gcp.fake_mig_client import FakeMigClient
+from app.gcp.fake_mig_client_pipeline import FakeMigClientWithPipeline
 from app.gcp.mig_client import MigClient
 from app.gcp.pubsub_client import PubSubClient
 from app.gcp.scheduler import Scheduler as GCPScheduler
@@ -30,6 +31,9 @@ def init_gcp_scheduler(db: Database):
     if config.use_fake_mig_client:
         logger.info("Using FakeMigClient for local environment")
         mig_client = FakeMigClient()
+    elif config.use_fake_mig_client_with_pipeline:
+        logger.info("Using FakeMigClientWithPipeline for local environment")
+        mig_client = FakeMigClientWithPipeline()
     else:
         logger.info("Using real MigClient for non-local environment")
         mig_client = MigClient(config.gcp_project)

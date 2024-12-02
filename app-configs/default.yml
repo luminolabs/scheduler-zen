@@ -38,6 +38,7 @@ db_port:
 
 # Fake services
 use_fake_mig_client: false
+use_fake_mig_client_with_pipeline: false
 
 # Available GPU types and their supported regions
 gpu_regions:

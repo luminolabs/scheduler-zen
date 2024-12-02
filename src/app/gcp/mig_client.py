@@ -6,6 +6,8 @@ from google.cloud import compute_v1
 
 from app.core.config_manager import config
 from app.core.utils import setup_logger, AsyncRetry
+from app.gcp.fake_mig_client import FakeMigClient
+from app.gcp.fake_mig_client_pipeline import FakeMigClientWithPipeline
 from app.gcp.utils import get_region_from_vm_name, get_mig_name_from_vm_name
 
 # Set up logging
@@ -167,3 +169,7 @@ class MigClient:
             except BadRequest:
                 # This is okay, the VM is already detached, or not found anymore
                 logger.warning(f"Coudn't detach VM {vm_name} for job {job_id}")
+
+
+# Not placing this in utils to avoid circular imports
+MigClientType = MigClient | FakeMigClient | FakeMigClientWithPipeline

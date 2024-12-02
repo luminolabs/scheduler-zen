@@ -12,7 +12,7 @@ from app.core.utils import (
 )
 from app.gcp.cluster_orchestrator import ClusterOrchestrator
 from app.gcp.fake_mig_client import FakeMigClient
-from app.gcp.mig_client import MigClient
+from app.gcp.mig_client import MigClientType
 from app.gcp.pubsub_client import PubSubClient
 from app.gcp.utils import get_region_from_vm_name
 
@@ -27,7 +27,7 @@ class Scheduler:
             db: Database,
             pubsub: PubSubClient,
             cluster_orchestrator: ClusterOrchestrator,
-            mig_client: MigClient | FakeMigClient
+            mig_client: MigClientType
     ) -> None:
         """
         Initialize the Scheduler.
@@ -36,7 +36,7 @@ class Scheduler:
             db (Database): The database instance for job tracking.
             pubsub (PubSubClient): The PubSub client for messaging.
             cluster_orchestrator (ClusterOrchestrator): The cluster orchestrator.
-            mig_client (MigClient | FakeMigClient): The MIG client for VM management.
+            mig_client (MigClientType): The MIG client for VM management.
         """
         self.db = db
         self.pubsub = pubsub
