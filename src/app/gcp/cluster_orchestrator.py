@@ -1,11 +1,12 @@
 import asyncio
-from typing import Dict, List, Union
+from typing import Dict, List
 
 from app.core.database import Database
 from app.core.utils import setup_logger
 from app.gcp.cluster_manager import ClusterManager
 from app.gcp.fake_mig_client import FakeMigClient
-from app.gcp.mig_client import MigClient
+from app.gcp.fake_mig_client_pipeline import FakeMigClientWithPipeline
+from app.gcp.mig_client import MigClientType
 
 logger = setup_logger(__name__)
 
@@ -17,7 +18,7 @@ class ClusterOrchestrator:
             self,
             project_id: str,
             cluster_configs: Dict[str, List[str]],
-            mig_client: Union[MigClient, FakeMigClient],
+            mig_client: MigClientType,
             max_scale_limits: Dict[str, int],
             db: Database
     ):
@@ -27,7 +28,7 @@ class ClusterOrchestrator:
         Args:
             project_id (str): The Google Cloud project ID.
             cluster_configs (Dict[str, List[str]]): A dictionary mapping cluster names to lists of regions.
-            mig_client (Union[MigClient, FakeMigClient]): The MIG client instance responsible for controlling MIGs.
+            mig_client (MigClientType): The MIG client instance responsible for controlling MIGs.
             max_scale_limits (Dict[str, int]): A dictionary mapping cluster names to max scale limits.
             db (Database): The database instance for querying job information.
         """
@@ -48,7 +49,7 @@ class ClusterOrchestrator:
                     f"cluster_configs: {cluster_configs}")
 
         # Initialize MIGs for local development
-        if isinstance(mig_client, FakeMigClient):
+        if isinstance(mig_client, (FakeMigClient, FakeMigClientWithPipeline)):
             for cluster, regions in cluster_configs.items():
                 for region in regions:
                     mig_client.initialize_mig(cluster, region)

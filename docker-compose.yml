@@ -13,7 +13,7 @@ services:
 
   api:
     build: .
-    command: python /project/app/api.py
+    command: python /project/app/main.py
     volumes:
       - .secrets:/project/.secrets
       - .logs:/project/.logs

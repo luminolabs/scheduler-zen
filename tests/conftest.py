@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api import app
+from app.main import app
 
 
 @pytest.fixture
@@ -112,10 +112,10 @@ def mock_task_scheduler():
 def test_client(mock_db, mock_gcp_scheduler, mock_lum_scheduler, mock_task_scheduler) -> Generator:
     """Create a FastAPI test client with mocked dependencies."""
     # Apply all mocks
-    with patch('app.api.db', mock_db), \
-            patch('app.api.gcp_scheduler', mock_gcp_scheduler), \
-            patch('app.api.lum_scheduler', mock_lum_scheduler), \
-            patch('app.api.background_task_scheduler', mock_task_scheduler), \
+    with patch('app.main.db', mock_db), \
+            patch('app.main.gcp_scheduler', mock_gcp_scheduler), \
+            patch('app.main.lum_scheduler', mock_lum_scheduler), \
+            patch('app.main.background_task_scheduler', mock_task_scheduler), \
             patch.dict(os.environ, {'SZ_ENV': 'test'}):
 
         with TestClient(app) as client:

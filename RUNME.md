@@ -49,7 +49,7 @@ this will start the db using docker compose, and will run the API directly with 
 
 4. Start the scheduler and API:
    ```
-   python src/app/api.py
+   python src/app/main.py
    ```
 
 ### Option 2: Full Docker Compose Setup
