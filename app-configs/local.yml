@@ -1,3 +1,6 @@
+# GCP
+gcp_project: eng-ai-dev
+
 # Logging
 log_level: DEBUG
 

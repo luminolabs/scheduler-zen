@@ -7,7 +7,7 @@ log_stdout: true
 log_file: ./.logs/output.log
 
 # GCP
-gcp_project: neat-airport-407301
+gcp_project:  # Set this in each app-config file, separately; e.g. `gcp_project: eng-ai-dev`
 job_start_topic: pipeline-zen-jobs-start
 job_start_subscription:  # only needed in local env, set in local.yml
 job_stop_topic: pipeline-zen-jobs-stop
@@ -59,7 +59,6 @@ gpu_regions:
     - us-central1
     - us-east4
     - us-east5
-    - europe-west4
     - asia-southeast1
   h100-80gb:
     - us-central1

@@ -11,21 +11,16 @@ cd /scheduler-zen
 # Inputs
 COMPOSE_OPTS=$1  # Additional options to pass to docker compose
 
-# Constants
-LOCAL_ENV="local"
-PROJECT_ID="neat-airport-407301"
-SECRET_NAME="scheduler-zen-db-config"
-
-if [[ "$SZ_ENV" == "" ]]; then
-  SZ_ENV="$SZ_ENV"
-fi
-
 # Export .env environment variables; note, we aren't aware of which environment
 # we're running on before importing CAPI_ENV from .env,
 # so we can't cd to /pipeline-zen-jobs conditionally above
 set -o allexport
 eval $(cat ./.env | grep -v '^#' | tr -d '\r')
 echo "SZ_ENV set to $SZ_ENV"
+
+# Constants
+SECRET_NAME="scheduler-zen-config"
+PROJECT_ID="eng-ai-$SZ_ENV"
 
 # Fetch the secret
 echo "Fetching database configuration from Secret Manager"

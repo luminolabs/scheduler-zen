@@ -7,15 +7,15 @@ from app.gcp.utils import (
 def test_get_region_from_vm_name():
     """Test extracting region from VM names."""
     # Test standard VM name format
-    vm_name = "pipeline-zen-jobs-4xa100-40gb-us-central1-0001"
+    vm_name = "pipeline-zen-jobs-4xa100-40gb-us-central1-vm-0001"
     assert get_region_from_vm_name(vm_name) == "us-central1"
 
     # Test different region formats
     cases = [
-        ("pipeline-zen-jobs-4xa100-40gb-europe-west4-0001", "europe-west4"),
-        ("pipeline-zen-jobs-4xa100-40gb-asia-east1-0001", "asia-east1"),
-        ("pipeline-zen-jobs-4xa100-40gb-me-west1-0001", "me-west1"),
-        ("pipeline-zen-jobs-4xa100-40gb-us-west2-0001", "us-west2"),
+        ("pipeline-zen-jobs-4xa100-40gb-europe-west4-vm-0001", "europe-west4"),
+        ("pipeline-zen-jobs-4xa100-40gb-asia-east1-vm-0001", "asia-east1"),
+        ("pipeline-zen-jobs-4xa100-40gb-me-west1-vm-0001", "me-west1"),
+        ("pipeline-zen-jobs-4xa100-40gb-us-west2-vm-0001", "us-west2"),
     ]
     for vm_name, expected_region in cases:
         assert get_region_from_vm_name(vm_name) == expected_region
@@ -27,23 +27,23 @@ def test_get_region_from_vm_name():
 def test_get_mig_name_from_vm_name():
     """Test extracting MIG name from VM names."""
     # Test standard VM name format
-    vm_name = "pipeline-zen-jobs-4xa100-40gb-us-central1-0001"
-    expected = "pipeline-zen-jobs-4xa100-40gb-us-central1"
+    vm_name = "pipeline-zen-jobs-4xa100-40gb-us-central1-vm-0001"
+    expected = "pipeline-zen-jobs-4xa100-40gb-us-central1-mig"
     assert get_mig_name_from_vm_name(vm_name) == expected
 
     # Test different cluster and region combinations
     cases = [
         (
-            "pipeline-zen-jobs-8xv100-europe-west4-0002",
-            "pipeline-zen-jobs-8xv100-europe-west4"
+            "pipeline-zen-jobs-8xv100-europe-west4-vm-0002",
+            "pipeline-zen-jobs-8xv100-europe-west4-mig"
         ),
         (
-            "pipeline-zen-jobs-1xa100-80gb-asia-east1-0003",
-            "pipeline-zen-jobs-1xa100-80gb-asia-east1"
+            "pipeline-zen-jobs-1xa100-80gb-asia-east1-vm-0003",
+            "pipeline-zen-jobs-1xa100-80gb-asia-east1-mig"
         ),
         (
-            "pipeline-zen-jobs-2xa100-40gb-me-west1-0004",
-            "pipeline-zen-jobs-2xa100-40gb-me-west1"
+            "pipeline-zen-jobs-2xa100-40gb-me-west1-vm-0004",
+            "pipeline-zen-jobs-2xa100-40gb-me-west1-mig"
         ),
     ]
     for vm_name, expected_mig_name in cases:
@@ -54,19 +54,19 @@ def test_get_mig_name_from_vm_name():
 
     # Test handling of invalid VM names
     # The implementation returns up to the first hyphen for any hyphenated string
-    assert get_mig_name_from_vm_name("invalid-vm-name") == "invalid-vm"
-    assert get_mig_name_from_vm_name("pipeline-zen-jobs") == "pipeline-zen"
-    assert get_mig_name_from_vm_name("pipeline-zen-jobs-") == "pipeline-zen-jobs"
+    assert get_mig_name_from_vm_name("invalid-vm-name") == "invalid-mig"
+    assert get_mig_name_from_vm_name("pipeline-zen-jobs") == "pipeline-mig"
+    assert get_mig_name_from_vm_name("pipeline-zen-jobs-") == "pipeline-zen-mig"
     assert get_mig_name_from_vm_name("") is None
 
 def test_get_mig_name_from_cluster_and_region():
     """Test generating MIG name from cluster and region."""
     # Test standard combinations
     cases = [
-        ("4xa100-40gb", "us-central1", "pipeline-zen-jobs-4xa100-40gb-us-central1"),
-        ("8xv100", "europe-west4", "pipeline-zen-jobs-8xv100-europe-west4"),
-        ("1xa100-80gb", "asia-east1", "pipeline-zen-jobs-1xa100-80gb-asia-east1"),
-        ("2xa100-40gb", "me-west1", "pipeline-zen-jobs-2xa100-40gb-me-west1"),
+        ("4xa100-40gb", "us-central1", "pipeline-zen-jobs-4xa100-40gb-us-central1-mig"),
+        ("8xv100", "europe-west4", "pipeline-zen-jobs-8xv100-europe-west4-mig"),
+        ("1xa100-80gb", "asia-east1", "pipeline-zen-jobs-1xa100-80gb-asia-east1-mig"),
+        ("2xa100-40gb", "me-west1", "pipeline-zen-jobs-2xa100-40gb-me-west1-mig"),
     ]
     for cluster, region, expected_name in cases:
         assert get_mig_name_from_cluster_and_region(cluster, region) == expected_name
@@ -80,7 +80,7 @@ def test_get_mig_name_from_cluster_and_region():
     ]
     region = "us-central1"
     for cluster in cluster_cases:
-        expected = f"pipeline-zen-jobs-{cluster}-{region}"
+        expected = f"pipeline-zen-jobs-{cluster}-{region}-mig"
         assert get_mig_name_from_cluster_and_region(cluster, region) == expected
 
     # Test with various region formats
@@ -91,13 +91,13 @@ def test_get_mig_name_from_cluster_and_region():
     ]
     cluster = "4xa100-40gb"
     for region in region_cases:
-        expected = f"pipeline-zen-jobs-{cluster}-{region}"
+        expected = f"pipeline-zen-jobs-{cluster}-{region}-mig"
         assert get_mig_name_from_cluster_and_region(cluster, region) == expected
 
     # Test with empty strings
-    assert get_mig_name_from_cluster_and_region("", "") == "pipeline-zen-jobs--"
+    assert get_mig_name_from_cluster_and_region("", "") == "pipeline-zen-jobs---mig"
 
     # Test with None values - the implementation appears to convert None to string "None"
-    assert get_mig_name_from_cluster_and_region(None, "us-central1") == "pipeline-zen-jobs-None-us-central1"
-    assert get_mig_name_from_cluster_and_region("4xa100-40gb", None) == "pipeline-zen-jobs-4xa100-40gb-None"
-    assert get_mig_name_from_cluster_and_region(None, None) == "pipeline-zen-jobs-None-None"
+    assert get_mig_name_from_cluster_and_region(None, "us-central1") == "pipeline-zen-jobs-None-us-central1-mig"
+    assert get_mig_name_from_cluster_and_region("4xa100-40gb", None) == "pipeline-zen-jobs-4xa100-40gb-None-mig"
+    assert get_mig_name_from_cluster_and_region(None, None) == "pipeline-zen-jobs-None-None-mig"

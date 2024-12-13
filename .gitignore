@@ -21,3 +21,10 @@ __pycache__
 # Generated file containing packed repository contents
 # for AI such as Claude
 scheduler-zen.txt
+
+# Terraform
+**/.terraform/
+**/terraform/.terraform.lock.hcl
+**/terraform/.terraform.tfstate.lock.info
+**/terraform/terraform.tfstate
+**/terraform/terraform.tfstate.backup
