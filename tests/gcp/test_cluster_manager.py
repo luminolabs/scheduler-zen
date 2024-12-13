@@ -55,8 +55,8 @@ async def test_scale_all_regions_no_pending_jobs(cluster_manager, mock_db):
     # Verify
     assert cluster_manager.mig_client.set_target_size.call_count == 2  # One for each region
     expected_calls = [
-        call("region1", "pipeline-zen-jobs-test-cluster-region1", 0),
-        call("region2", "pipeline-zen-jobs-test-cluster-region2", 0)
+        call("region1", "pipeline-zen-jobs-test-cluster-region1-mig", 0),
+        call("region2", "pipeline-zen-jobs-test-cluster-region2-mig", 0)
     ]
     cluster_manager.mig_client.set_target_size.assert_has_calls(expected_calls, any_order=True)
 
@@ -77,8 +77,8 @@ async def test_scale_all_regions_with_pending_jobs(cluster_manager, mock_db):
 
     # Verify scaling was called for each region with correct size
     expected_calls = [
-        call("region1", "pipeline-zen-jobs-test-cluster-region1", 3),
-        call("region2", "pipeline-zen-jobs-test-cluster-region2", 3)
+        call("region1", "pipeline-zen-jobs-test-cluster-region1-mig", 3),
+        call("region2", "pipeline-zen-jobs-test-cluster-region2-mig", 3)
     ]
     cluster_manager.mig_client.set_target_size.assert_has_calls(expected_calls, any_order=True)
 
@@ -99,7 +99,7 @@ async def test_scale_all_regions_respects_max_limit(cluster_manager, mock_db):
 
     # Verify target size is capped at max_scale_limit
     expected_calls = [
-        call("region1", "pipeline-zen-jobs-test-cluster-region1", 4),
-        call("region2", "pipeline-zen-jobs-test-cluster-region2", 4)
+        call("region1", "pipeline-zen-jobs-test-cluster-region1-mig", 4),
+        call("region2", "pipeline-zen-jobs-test-cluster-region2-mig", 4)
     ]
     cluster_manager.mig_client.set_target_size.assert_has_calls(expected_calls, any_order=True)

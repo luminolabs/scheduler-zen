@@ -1,3 +1,4 @@
+gcp_project: "eng-ai-test"  # this doesn't really exist, for a good reason
 log_level: DEBUG
 lum_contract_address: "0x4118CFD00dD5e8CED96e0ff8061F56F2d155e83B"
 alchemy_api_key: "abc123"

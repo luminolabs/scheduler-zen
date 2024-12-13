@@ -77,11 +77,11 @@ async def test_set_target_size(mig_client):
 async def test_detach_vm(mig_client):
     """Test detaching a VM from its MIG."""
     # Set up test data
-    vm_name = "pipeline-zen-jobs-4xa100-40gb-us-central1-0001"
+    vm_name = "pipeline-zen-jobs-4xa100-40gb-us-central1-vm-0001"
     job_id = "test-job"
     region = "us-central1"
     zone = "us-central1-a"
-    mig_name = "pipeline-zen-jobs-4xa100-40gb-us-central1"
+    mig_name = "pipeline-zen-jobs-4xa100-40gb-us-central1-mig"
 
     # Mock get_instance_zone call
     mig_client.get_instance_zone = AsyncMock(return_value=zone)

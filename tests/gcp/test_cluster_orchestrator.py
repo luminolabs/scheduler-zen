@@ -83,7 +83,7 @@ def test_initialization_with_fake_mig_client(mock_db):
     # Verify MIGs were initialized for each cluster and region
     for cluster, regions in cluster_configs.items():
         for region in regions:
-            mig_name = f"pipeline-zen-jobs-{cluster}-{region}"
+            mig_name = f"pipeline-zen-jobs-{cluster}-{region}-mig"
             assert mig_name in fake_mig_client.migs.get(region, {})
 
 

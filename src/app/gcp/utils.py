@@ -11,7 +11,7 @@ def get_region_from_vm_name(vm_name: Optional[str]) -> Optional[str]:
     Returns:
         str: The region of the VM.
     """
-    return '-'.join(vm_name.split('-')[-3:-1]) if vm_name else None
+    return '-'.join(vm_name.split('-')[-4:-2]) if vm_name else None
 
 
 def get_mig_name_from_vm_name(vm_name: Optional[str]) -> Optional[str]:
@@ -24,7 +24,7 @@ def get_mig_name_from_vm_name(vm_name: Optional[str]) -> Optional[str]:
     Returns:
         str: The MIG name of the VM.
     """
-    return '-'.join(vm_name.split('-')[:-1]) if vm_name else None
+    return '-'.join(vm_name.split('-')[:-2]) + '-mig' if vm_name else None
 
 
 def get_mig_name_from_cluster_and_region(cluster: str, region: str) -> str:
@@ -38,4 +38,4 @@ def get_mig_name_from_cluster_and_region(cluster: str, region: str) -> str:
     Returns:
         str: The MIG name of the cluster and region.
     """
-    return f"pipeline-zen-jobs-{cluster}-{region}"
+    return f"pipeline-zen-jobs-{cluster}-{region}-mig"
