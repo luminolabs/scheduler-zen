@@ -40,3 +40,17 @@ resource "google_project_iam_member" "scheduler_zen_custom_roles" {
   role    = "projects/${var.project_id}/roles/${each.key}"
   member  = "serviceAccount:${google_service_account.scheduler_zen.email}"
 }
+
+resource "google_storage_bucket_iam_member" "pipeline_zen_jobs_results" {
+  for_each = toset([
+    "lum-${var.environment}-pipeline-zen-jobs-us",
+    "lum-${var.environment}-pipeline-zen-jobs-asia",
+    "lum-${var.environment}-pipeline-zen-jobs-europe",
+    "lum-${var.environment}-pipeline-zen-jobs-me-west1",
+    "lum-local-pipeline-zen-jobs-us",
+  ])
+
+  bucket = each.value
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.scheduler_zen.email}"
+}
