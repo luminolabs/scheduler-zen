@@ -117,34 +117,34 @@ def test_get_results_bucket_local_env(mock_config):
     result = get_results_bucket("us-central1")
 
     # Verify result
-    assert result == "lum-pipeline-zen-jobs-local"
+    assert result == "lum-test-pipeline-zen-jobs-local"
 
 
 def test_get_results_bucket_us_region():
     """Test get_results_bucket with US region."""
     result = get_results_bucket("us-central1")
-    assert result == "lum-pipeline-zen-jobs-us"
+    assert result == "lum-test-pipeline-zen-jobs-us"
 
 
 def test_get_results_bucket_europe_region():
     """Test get_results_bucket with Europe region."""
     result = get_results_bucket("europe-west1")
-    assert result == "lum-pipeline-zen-jobs-europe"
+    assert result == "lum-test-pipeline-zen-jobs-europe"
 
 
 def test_get_results_bucket_asia_region():
     """Test get_results_bucket with Asia region."""
     result = get_results_bucket("asia-east1")
-    assert result == "lum-pipeline-zen-jobs-asia"
+    assert result == "lum-test-pipeline-zen-jobs-asia"
 
 
 def test_get_results_bucket_me_region():
     """Test get_results_bucket with the Middle East region."""
     result = get_results_bucket("me-west1")
-    assert result == "lum-pipeline-zen-jobs-me-west1"
+    assert result == "lum-test-pipeline-zen-jobs-me-west1"
 
 
 def test_get_results_bucket_default_region():
     """Test get_results_bucket with default region."""
     result = get_results_bucket()
-    assert result == "lum-pipeline-zen-jobs-us"
+    assert result == "lum-test-pipeline-zen-jobs-us"
