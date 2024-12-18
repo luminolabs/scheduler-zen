@@ -21,6 +21,8 @@ echo "SZ_ENV set to $SZ_ENV"
 # Constants
 SECRET_NAME="scheduler-zen-config"
 PROJECT_ID="eng-ai-$SZ_ENV"
+SERVICE_ACCOUNT="scheduler-zen-sa@$PROJECT_ID.iam.gserviceaccount.com"
+export CLOUDSDK_CORE_ACCOUNT=$SERVICE_ACCOUNT
 
 # Fetch the secret
 echo "Fetching database configuration from Secret Manager"

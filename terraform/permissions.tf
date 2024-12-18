@@ -54,3 +54,11 @@ resource "google_storage_bucket_iam_member" "pipeline_zen_jobs_results" {
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${google_service_account.scheduler_zen.email}"
 }
+
+resource "google_artifact_registry_repository_iam_member" "scheduler_zen" {
+  member     = "serviceAccount:${google_service_account.scheduler_zen.email}"
+  repository = "lum-docker-images"
+  project    = var.resources_project_id
+  location   = var.region
+  role       = "roles/artifactregistry.reader"
+}
