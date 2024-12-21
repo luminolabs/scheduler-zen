@@ -7,5 +7,5 @@ resource "google_secret_manager_secret" "scheduler_zen_config" {
 
 resource "google_secret_manager_secret_version" "config" {
   secret = google_secret_manager_secret.scheduler_zen_config.id
-  secret_data = file("${path.module}/../.secrets/config-${var.environment}.env")
+  secret_data = file("${path.module}/${var.environment}-config.env")
 }
