@@ -40,6 +40,9 @@ echo "Fetching secrets and configuration from Secret Manager"
 SECRET_NAME="$SERVICE_NAME-config"
 SECRET_PAYLOAD=$(gcloud secrets versions access latest --secret=$SECRET_NAME --project=$PROJECT_ID)
 eval "$SECRET_PAYLOAD"
+echo "SZ_DB_NAME set to $SZ_DB_NAME"
+echo "SZ_DB_USER set to $SZ_DB_USER"
+echo "SZ_DB_PORT set to $SZ_DB_PORT"
 
 echo "Starting services with docker-compose"
 docker compose up --build --no-deps -d $COMPOSE_OPTS
