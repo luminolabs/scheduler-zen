@@ -1,13 +1,11 @@
 variable "project_id" {
   description = "The GCP project ID"
   type        = string
-  default     = "eng-ai-dev"
 }
 
 variable "environment" {
   description = "The environment (e.g., dev, prod)"
   type        = string
-  default     = "dev"
 }
 
 variable "region" {
