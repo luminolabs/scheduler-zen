@@ -30,7 +30,7 @@ recently_completed_job_threshold_minutes: 10
 
 # Database
 # Set these in your .env file when running on a local env
-# On non-local envs, we store these in a GCP secret
+# On non-local envs, we store these in a GCP secret and on VM attributes
 db_name:
 db_user:
 db_pass:

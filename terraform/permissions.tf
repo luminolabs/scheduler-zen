@@ -23,7 +23,8 @@ resource "google_project_iam_member" "scheduler_zen_project" {
     "roles/secretmanager.secretAccessor",
     "roles/secretmanager.viewer",
     "roles/pubsub.publisher",
-    "roles/pubsub.subscriber"
+    "roles/pubsub.subscriber",
+    "roles/cloudsql.client"
   ])
 
   project = var.project_id

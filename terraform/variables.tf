@@ -27,3 +27,8 @@ variable "resources_project_id" {
   type        = string
   default     = "neat-airport-407301"
 }
+
+variable "sql_postgres_password" {
+  description = "The password for the PostgreSQL user"
+  type        = string
+}

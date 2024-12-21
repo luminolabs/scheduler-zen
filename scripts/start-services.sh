@@ -1,38 +1,47 @@
 #!/bin/bash
 
-# This script is used to start the scheduler on dev and production environments, don't use locally
+# This script is used to start the service on GCP only
+# Don't use this script locally
 
 # Exit on errors
 set -e
 
-# Go to the /scheduler-zen directory, where we've loaded all necessary files to run the Scheduler
-cd /scheduler-zen
-
-# Inputs
-COMPOSE_OPTS=$1  # Additional options to pass to docker compose
-
-# Export .env environment variables; note, we aren't aware of which environment
-# we're running on before importing CAPI_ENV from .env,
-# so we can't cd to /pipeline-zen-jobs conditionally above
+# Export all variables
 set -o allexport
-eval $(cat ./.env | grep -v '^#' | tr -d '\r')
-echo "SZ_ENV set to $SZ_ENV"
 
 # Constants
-SECRET_NAME="scheduler-zen-config"
+SERVICE_NAME='scheduler-zen'
+ENV_VAR_PREFIX='SZ'
+
+# Inputs
+COMPOSE_OPTS="${@:1}"  # Options to pass to docker compose
+
+echo "Starting $SERVICE_NAME..."
+echo "ENV_VAR_PREFIX set to $ENV_VAR_PREFIX"
+echo "COMPOSE_OPTS set to $COMPOSE_OPTS"
+
+echo "Pulling env variables from metadata server"
+SZ_ENV=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/${ENV_VAR_PREFIX}_ENV")
+SZ_DB_HOST=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/${ENV_VAR_PREFIX}_DB_PORT")
+echo "SZ_ENV set to $SZ_ENV"
+echo "SZ_DB_HOST set to $SZ_DB_HOST"
+
+CODE_REPO_DIR="/$SERVICE_NAME"
+echo "Changing directory to $CODE_REPO_DIR"
+cd "$CODE_REPO_DIR" || exit 0
+
+# Set the project ID and service account based on the environment
 PROJECT_ID="eng-ai-$SZ_ENV"
-SERVICE_ACCOUNT="scheduler-zen-sa@$PROJECT_ID.iam.gserviceaccount.com"
-export CLOUDSDK_CORE_ACCOUNT=$SERVICE_ACCOUNT
+CLOUDSDK_CORE_ACCOUNT="$SERVICE_NAME-sa@$PROJECT_ID.iam.gserviceaccount.com"
+echo "PROJECT_ID set to $PROJECT_ID"
+echo "CLOUDSDK_CORE_ACCOUNT set to $CLOUDSDK_CORE_ACCOUNT"
 
-# Fetch the secret
-echo "Fetching database configuration from Secret Manager"
+echo "Fetching secrets and configuration from Secret Manager"
+SECRET_NAME="$SERVICE_NAME-config"
 SECRET_PAYLOAD=$(gcloud secrets versions access latest --secret=$SECRET_NAME --project=$PROJECT_ID)
-
-# Parse the secret payload and set environment variables
 eval "$SECRET_PAYLOAD"
 
-# Start the services using docker-compose
 echo "Starting services with docker-compose"
-docker compose up --build -d $COMPOSE_OPTS
+docker compose up --build --no-deps -d $COMPOSE_OPTS
 
-echo "Scheduler services started successfully"
+echo "Services started successfully"

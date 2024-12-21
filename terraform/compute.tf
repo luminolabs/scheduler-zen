@@ -11,7 +11,7 @@ resource "google_compute_instance" "scheduler-zen" {
 
     initialize_params {
       image = "projects/${var.resources_project_id}/global/images/scheduler-zen-image"
-      size  = 250  # TODO: Legacy, from current scheduler image. Should be resized
+      size  = 250  # TODO: Legacy, from current scheduler image. Should be reduced.
       type  = "pd-balanced"
     }
 
@@ -25,6 +25,7 @@ resource "google_compute_instance" "scheduler-zen" {
   metadata = {
     enable-osconfig = "TRUE"
     SZ_ENV = var.environment
+    SZ_DB_HOST = google_sql_database_instance.postgres.private_ip_address
   }
 
   network_interface {
