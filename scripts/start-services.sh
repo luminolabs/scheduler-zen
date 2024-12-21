@@ -22,7 +22,7 @@ echo "COMPOSE_OPTS set to $COMPOSE_OPTS"
 
 echo "Pulling env variables from metadata server"
 SZ_ENV=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/${ENV_VAR_PREFIX}_ENV")
-SZ_DB_HOST=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/${ENV_VAR_PREFIX}_DB_PORT")
+SZ_DB_HOST=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/${ENV_VAR_PREFIX}_DB_HOST")
 echo "SZ_ENV set to $SZ_ENV"
 echo "SZ_DB_HOST set to $SZ_DB_HOST"
 
