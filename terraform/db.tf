@@ -77,5 +77,5 @@ resource "google_sql_database" "default" {
 resource "google_sql_user" "default" {
   name     = "scheduler_zen"
   instance = google_sql_database_instance.postgres.name
-  password = local.zen_db_password
+  password = var.zen_db_password
 }

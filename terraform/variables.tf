@@ -25,3 +25,8 @@ variable "resources_project_id" {
   type        = string
   default     = "neat-airport-407301"
 }
+
+variable "zen_db_password" {
+  description = "The password for the Cloud SQL database"
+  type        = string
+}

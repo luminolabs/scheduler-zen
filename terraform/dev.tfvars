@@ -1,2 +1,2 @@
-project_id               = "eng-ai-dev"
-environment              = "dev"
+project_id  = "eng-ai-dev"
+environment = "dev"
