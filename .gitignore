@@ -1,27 +1,27 @@
-# IDE-specific files and directories
-.idea
+# Python cache files
+__pycache__/
+*.py[cod]
 
-# Install dependencies from requirements.txt
-# this only applies when starting with ./scripts/start-scheduler.sh
-# which usually only happens in the VM on dev or prod
-.__pylibs__
-
-# Python bytecode cache
-__pycache__
-
-# Local environment variables file
+# Environment variables file
 .env
-.gcp
 
-# Log files
-.logs
+# IDE-specific files
+.idea/
+.vscode/
 
-# Directory for storing secrets
-.secrets
+# Logs folder
+.logs/
+
+# Secret files
+.secrets/
 
 # Generated file containing packed repository contents
 # for AI such as Claude
 scheduler-zen.txt
+
+# OS-specific files
+.DS_Store
+Thumbs.db
 
 # Terraform
 **/.terraform/
