@@ -27,6 +27,6 @@ variable "resources_project_id" {
 }
 
 variable "zen_db_password" {
-  description = "The password for the Cloud SQL database"
+  description = "The password for the Cloud SQL scheduler_zen user"
   type        = string
 }
