@@ -1,10 +1,12 @@
 import asyncio
+import traceback
 from typing import Optional
 
 from google.api_core.exceptions import NotFound, BadRequest
 from google.cloud import compute_v1
 
 from app.core.config_manager import config
+from app.core.exceptions import DetachVMError
 from app.core.utils import setup_logger, AsyncRetry
 from app.gcp.fake_mig_client import FakeMigClient
 from app.gcp.fake_mig_client_pipeline import FakeMigClientWithPipeline
@@ -137,7 +139,6 @@ class MigClient:
                 # MIG not found is managed elsewhere; let's return 0 here
                 return 0
 
-    @retry_config
     async def detach_vm(self, vm_name: str, job_id: str) -> None:
         """
         Detach a VM from its regional MIG.
@@ -166,9 +167,11 @@ class MigClient:
                 operation = await asyncio.to_thread(self.client.abandon_instances, request)
                 await asyncio.to_thread(operation.result)
                 logger.info(f"MIG {mig_name}: detached VM {vm_name} for job {job_id}")
-            except BadRequest:
-                # This is okay, the VM is already detached, or not found anymore
-                logger.warning(f"Coudn't detach VM {vm_name} for job {job_id}")
+            except BadRequest as e:
+                logger.error(f"Couldn't detach VM {vm_name} for job {job_id}, "
+                             f"exception {str(e)}, traceback: {traceback.format_exc()}")
+                raise DetachVMError(f"Couldn't detach VM {vm_name} for job {job_id}") from e
+
 
 
 # Not placing this in utils to avoid circular imports

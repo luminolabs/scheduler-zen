@@ -1,11 +1,13 @@
 import json
 from contextlib import asynccontextmanager
-from unittest.mock import AsyncMock, MagicMock
+from unittest import mock
+from unittest.mock import AsyncMock, MagicMock, call
 
 import pytest
 
+from app.core.exceptions import DetachVMError
 from app.core.utils import (
-    JOB_STATUS_NEW, JOB_STATUS_WAIT_FOR_VM, JOB_STATUS_RUNNING, JOB_STATUS_STOPPED
+    JOB_STATUS_NEW, JOB_STATUS_WAIT_FOR_VM, JOB_STATUS_RUNNING, JOB_STATUS_STOPPED, JOB_STATUS_DETACHED_VM
 )
 from app.gcp.scheduler import Scheduler
 
@@ -169,6 +171,35 @@ async def test_monitor_and_detach_vms(scheduler, mock_db, mock_mig_client):
 
     # Verify results
     mock_db.update_job_gcp.assert_awaited_once()
+    mock_mig_client.detach_vm.assert_awaited_once_with("test-vm", "test-job")
+
+
+@pytest.mark.asyncio
+async def test_monitor_and_detach_vms_handles_detach_error(scheduler, mock_db, mock_mig_client):
+    """Test error handling when VM detachment fails."""
+    # Mock a job in FOUND_VM status
+    found_vm_job = {
+        "job_id": "test-job",
+        "user_id": "test-user",
+        "gcp": {"vm_name": "test-vm"}
+    }
+    mock_db.get_jobs_by_status_gcp.return_value = [found_vm_job]
+
+    # Make detach_vm raise DetachVMError
+    mock_mig_client.detach_vm.side_effect = DetachVMError("Failed to detach VM")
+
+    # Run the monitoring cycle
+    await scheduler._monitor_and_detach_vms()
+
+    # Verify the job status was reset to NEW
+    mock_db.update_job_gcp.assert_has_awaits([
+        # First call trying to update to DETACHED_VM (will fail)
+        mock.call(mock.ANY, "test-job", "test-user", "DETACHED_VM"),
+        # Second call resetting to NEW
+        mock.call(mock.ANY, "test-job", "test-user", "NEW")
+    ])
+
+    # Verify detach was attempted
     mock_mig_client.detach_vm.assert_awaited_once_with("test-vm", "test-job")
 
 
