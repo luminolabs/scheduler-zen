@@ -2,8 +2,10 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from google.api_core.exceptions import BadRequest
 from google.cloud import compute_v1
 
+from app.core.exceptions import DetachVMError
 from app.gcp.mig_client import MigClient
 
 
@@ -110,3 +112,41 @@ async def test_detach_vm(mig_client):
     mig_client.client.abandon_instances.assert_called_once_with(expected_request)
     # Verify operation result was called
     assert operation_result.called
+
+@pytest.mark.asyncio
+async def test_detach_vm_error_handling(mig_client):
+    """Test error handling when detaching a VM fails."""
+    # Set up test data
+    vm_name = "pipeline-zen-jobs-4xa100-40gb-us-central1-vm-0001"
+    job_id = "test-job"
+    region = "us-central1"
+    zone = "us-central1-a"
+    mig_name = "pipeline-zen-jobs-4xa100-40gb-us-central1-mig"
+
+    # Mock get_instance_zone call
+    mig_client.get_instance_zone = AsyncMock(return_value=zone)
+
+    # Mock abandon_instances to raise a BadRequest error
+    error_message = "Failed to detach VM"
+    mock_error = BadRequest(message=error_message)
+    mig_client.client.abandon_instances.side_effect = mock_error
+
+    # Attempt to detach VM and verify error handling
+    with pytest.raises(DetachVMError) as exc_info:
+        await mig_client.detach_vm(vm_name, job_id)
+
+    # Verify correct error was raised and propagated
+    assert str(exc_info.value) == f"Couldn't detach VM {vm_name} for job {job_id}"
+    assert exc_info.value.__cause__ == mock_error
+
+    # Verify API calls were made correctly before error
+    mig_client.get_instance_zone.assert_called_once_with(region, vm_name)
+    expected_request = compute_v1.AbandonInstancesRegionInstanceGroupManagerRequest(
+        project="test-project",
+        region=region,
+        instance_group_manager=mig_name,
+        region_instance_group_managers_abandon_instances_request_resource=compute_v1.RegionInstanceGroupManagersAbandonInstancesRequest(
+            instances=[f"zones/{zone}/instances/{vm_name}"]
+        )
+    )
+    mig_client.client.abandon_instances.assert_called_once_with(expected_request)

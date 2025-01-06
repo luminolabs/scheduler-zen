@@ -4,6 +4,7 @@ from typing import Any, Dict
 
 from app.core.config_manager import config
 from app.core.database import Database
+from app.core.exceptions import DetachVMError
 from app.core.utils import (
     JOB_STATUS_NEW,
     JOB_STATUS_WAIT_FOR_VM, JOB_STATUS_FOUND_VM, JOB_STATUS_DETACHED_VM,
@@ -171,11 +172,22 @@ class Scheduler:
         jobs = await self.db.get_jobs_by_status_gcp(JOB_STATUS_FOUND_VM)
 
         for job in jobs:
-            async with self.db.transaction() as conn:
-                await self.db.update_job_gcp(
-                    conn, job['job_id'], job['user_id'], JOB_STATUS_DETACHED_VM)
-                await self.mig_client.detach_vm(job['gcp']['vm_name'], job['job_id'])
-            logger.info(f"Detached VM {job['gcp']['vm_name']} for job {job['job_id']}")
+            try:
+                async with self.db.transaction() as conn:
+                    await self.db.update_job_gcp(
+                        conn, job['job_id'], job['user_id'], JOB_STATUS_DETACHED_VM)
+                    await self.mig_client.detach_vm(job['gcp']['vm_name'], job['job_id'])
+                    logger.info(f"Detached VM {job['gcp']['vm_name']} for job {job['job_id']}")
+            except DetachVMError:
+                # Sometimes, the VM gets deleted before we can detach it
+                # and this results the job to be stuck in DETACHED_VM state.
+                # We don't know why this happens, because it's intermittent, and
+                # we can't reproduce it easily and debug it without spending a lot of time.
+                # So, we'll re-set the job status to NEW and let the job start again on a new VM.
+                async with self.db.transaction() as conn:
+                    logger.warning(f"Couldn't detach VM {job['gcp']['vm_name']} for job {job['job_id']}; "
+                                   f"re-setting job status to NEW for rescheduling")
+                    await self.db.update_job_gcp(conn, job['job_id'], job['user_id'], JOB_STATUS_NEW)
 
     async def _handle_heartbeat(self, message_data: bytes) -> None:
         """
