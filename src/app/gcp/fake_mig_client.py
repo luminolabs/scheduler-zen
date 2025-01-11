@@ -34,7 +34,7 @@ class FakeMigClient:
         self.subscriber = pubsub_v1.SubscriberClient()
 
         # Set up job start message handling
-        self.project_id = "neat-airport-407301"
+        self.project_id = config.gcp_project
         self.start_subscription = self.subscriber.subscription_path(
             self.project_id,
             config.job_start_subscription

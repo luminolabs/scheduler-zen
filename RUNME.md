@@ -33,22 +33,22 @@ Recommended for local development;
 this will start the db using docker compose, and will run the API directly with python.
 
 1. Start the PostgreSQL database using Docker Compose:
-   ```
+   ```bash
    docker-compose up -d db
    ```
 
 2. Install the required Python dependencies:
-   ```
+   ```bash
    pip install -Ur requirements.txt
    ```
 
 3. Set the Python path:
-   ```
+   ```bash
    export PYTHONPATH=$(pwd)/src
    ```
 
 4. Start the scheduler and API:
-   ```
+   ```bash
    python src/app/main.py
    ```
 
@@ -61,36 +61,18 @@ This will start both the PostgreSQL database and the API service using docker co
    docker-compose up -d
    ```
 
-## Setting Up on a GCP VM
+## Running with the FakeMigClientWithPipeline
 
-To set up the project on a GCP VM, follow these steps:
+- Ensure that the `pipeline-zen` repo is cloned under `../pipeline-zen` relatively to this repo
+- Ensure that you can run a dummy job directly with the pipeline locally first
+- Ensure that you have a `./.secrets/gcp_key.json` under the `pipeline-zen` folder.
+- Import that service account to `gcloud`:
+  ```bash
+  gcloud auth activate-service-account pipeline-zen-jobs-sa@eng-ai-dev.iam.gserviceaccount.com --key-file=./.secrets/gcp_key.json --project=eng-ai-dev
+  ```
+- Then revert back to your default login (use your email):
+  ```bash
+  gcloud config set account vasilis@luminolabs.ai
+  ```
 
-1. Ensure that the VM is configured with the `scheduler-zen-dev` service account.
-
-2. Install Docker and Docker Compose on the VM if they're not already installed.
-
-3. Install the GCP Ops Agent on the VM.
-
-4. Set up log streaming to GCP. Refer to the configuration under the `infra/vm/` directory.
-
-5. Clone the `scheduler-zen` repository to the `/scheduler-zen` directory on the VM:
-   ```
-   git clone git@github.com:luminolabs/scheduler-zen.git /scheduler-zen
-   ```
-
-6. Navigate to the project root:
-   ```
-   cd /scheduler-zen
-   ```
-
-7. Create a `.env` file in the project root with the following content:
-   ```
-   SZ_ENV=dev
-   ```
-8. Run the following script to start the services:
-   ```
-   ./scripts/start-scheduler.sh
-   ```
-
-This script will fetch the database configuration from Google Secret Manager, 
-set the necessary environment variables, and start the api and db services using Docker Compose.
+The pipeline will use the `pipeline-zen-jobs-sa` service account automatically
