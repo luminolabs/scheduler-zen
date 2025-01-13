@@ -31,3 +31,4 @@ Thumbs.db
 **/terraform/terraform.tfstate.backup
 **/terraform/secrets.tfvars
 **/terraform/*-config.env
+terraform/terraform.tfstate.d

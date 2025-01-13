@@ -16,6 +16,8 @@ resource "google_pubsub_subscription" "job_heartbeats" {
 }
 
 resource "google_pubsub_subscription" "job_heartbeats_local" {
+  count  = var.environment == "dev" ? 1 : 0
+
   name    = "pipeline-zen-jobs-heartbeats-local-scheduler"
   topic   = "pipeline-zen-jobs-heartbeats-local"
   project = var.project_id
