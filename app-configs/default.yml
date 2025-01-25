@@ -57,12 +57,13 @@ gpu_regions:
     - us-west3
     - us-west4
   a100-80gb:
+    - asia-southeast1
+    - europe-west4
     - us-central1
     - us-east4
     - us-east5
-    - asia-southeast1
   h100-80gb:
-    - us-central1
+    - europe-west4
 
 # Available MIG clusters and their GPU types
 mig_clusters:
