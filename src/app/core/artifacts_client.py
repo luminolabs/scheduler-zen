@@ -37,6 +37,10 @@ async def pull_artifacts_meta_from_gcs_task(
     else:
         raise SystemError(f"Unknown provider: {job['provider']}")
 
+    # If the job region is not set, there's no artifact to pull
+    if not region:
+        return None
+
     # Get the results bucket name based on the job region
     bucket_name = get_results_bucket(region)
     # Download and parse the job-meta.json object
