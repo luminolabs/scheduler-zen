@@ -63,7 +63,9 @@ gpu_regions:
     - us-east4
     - us-east5
   h100-80gb:
-    - europe-west4
+    - us-east5
+    - us-west1
+    - us-west4
 
 # Available MIG clusters and their GPU types
 mig_clusters:
@@ -101,4 +103,4 @@ max_scale_limits:
   4xa100-80gb: 4
   8xa100-80gb: 2
   # H100-80GB
-  8xh100-80gb: 1
+  8xh100-80gb: 3
