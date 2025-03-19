@@ -9,3 +9,10 @@ terraform {
 provider "google" {
   project = var.project_id
 }
+
+terraform {
+  backend "gcs" {
+    bucket = "lum-terraform-state"
+    prefix = "scheduler-zen"
+  }
+}
