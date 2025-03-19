@@ -63,6 +63,7 @@ gpu_regions:
     - us-east4
     - us-east5
   h100-80gb:
+    - europe-west4
     - us-east5
     - us-west1
     - us-west4
